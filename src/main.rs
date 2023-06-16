@@ -29,7 +29,25 @@ impl Flock {
         }
         return boids;
     }
-    fn uncrowd_boid(&mut self, boid_to_uncrowd: usize, repulsion_from_close_boids: i32) {
+    fn uncrowd_boid(&mut self, boid_to_update: usize, repulsion_from_close_boids: i32,
+        num_crowding_boids: i32, total_x_dist_of_crowding_boids: i32,
+        total_y_dist_of_crowding_boids: i32) {
+
+        // move away from the average position of the crowding boids
+        let dist_to_ave_x_pos_of_crowding_boids: i32 = self.boids[boid_to_update].x_pos - (total_x_dist_of_crowding_boids / num_crowding_boids);
+        let dist_to_ave_y_pos_of_crowding_boids: i32 = self.boids[boid_to_update].y_pos - (total_y_dist_of_crowding_boids / num_crowding_boids);
+
+        // update velocity to move away from the average boid position within the crowding flock
+        let time_per_frame: i32 = 1;
+        self.boids[boid_to_update] =
+        Boid::new(
+        self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * time_per_frame),
+        self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * time_per_frame),
+        self.boids[boid_to_update].x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_from_close_boids),
+        self.boids[boid_to_update].y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_from_close_boids),
+        )
+    }
+    fn update_boid(&mut self, boid_to_update: usize, repulsion_from_close_boids: i32) {
         // todo: this initial implementation loops through all boids in the flock,
         // which will need to be done for alignment and cohesion too, so don't do this
 
@@ -41,12 +59,12 @@ impl Flock {
 
         let mut boid_idx = 0;
         for other_boid in &self.boids {
-            if boid_idx == boid_to_uncrowd {
+            if boid_idx == boid_to_update {
                 boid_idx += 1;
                 continue;
             }
             boid_idx += 1;
-            if self.boids[boid_to_uncrowd].is_crowded_by_boid(&other_boid, self.max_dist_before_boid_is_crowded) {
+            if self.boids[boid_to_update].is_crowded_by_boid(&other_boid, self.max_dist_before_boid_is_crowded) {
                 num_crowding_boids += 1;
                 total_x_dist_of_crowding_boids += other_boid.x_pos;
                 total_y_dist_of_crowding_boids += other_boid.y_pos;
@@ -54,19 +72,7 @@ impl Flock {
         }
 
         if num_crowding_boids > 0 {
-            // move away from the average position of the crowding boids
-            let dist_to_ave_x_pos_of_crowding_boids: i32 = self.boids[boid_to_uncrowd].x_pos - (total_x_dist_of_crowding_boids / num_crowding_boids);
-            let dist_to_ave_y_pos_of_crowding_boids: i32 = self.boids[boid_to_uncrowd].y_pos - (total_y_dist_of_crowding_boids / num_crowding_boids);
-
-            // update velocity to move away from the average boid position within the crowding flock
-            let time_per_frame: i32 = 1;
-            self.boids[boid_to_uncrowd] =
-                Boid::new(
-                    self.boids[boid_to_uncrowd].x_pos + (self.boids[boid_to_uncrowd].x_vel * time_per_frame),
-                    self.boids[boid_to_uncrowd].y_pos + (self.boids[boid_to_uncrowd].y_vel * time_per_frame),
-                    self.boids[boid_to_uncrowd].x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_from_close_boids),
-                    self.boids[boid_to_uncrowd].y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_from_close_boids),
-                )
+            Flock::uncrowd_boid(self, boid_to_update, repulsion_from_close_boids, num_crowding_boids, total_x_dist_of_crowding_boids, total_y_dist_of_crowding_boids);
         }
     }
 }
@@ -128,14 +134,14 @@ mod tests {
         let other_boid = Boid::new(10, 10, 1, 5);
         flock.boids = vec![boid, other_boid];
 
-        flock.uncrowd_boid(0, 0);
+        flock.update_boid(0, 0);
         assert_eq!(flock.boids[0].x_vel, boid.x_vel);
         assert_eq!(flock.boids[0].y_vel, boid.y_vel);
         // v = d/t; t = 1
         assert_eq!(flock.boids[0].x_pos, boid.x_pos + boid.x_vel);
         assert_eq!(flock.boids[0].y_pos, boid.y_pos + boid.y_vel);
 
-        flock.uncrowd_boid(1, 1);
+        flock.update_boid(1, 1);
         // new velocity = original velocity + repulsion*(difference in displacement)
         assert_eq!(flock.boids[1].x_vel, other_boid.x_vel + 1 * (other_boid.x_pos - flock.boids[0].x_pos));
         assert_eq!(flock.boids[1].y_vel, other_boid.y_vel + 1 * (other_boid.y_pos - flock.boids[0].y_pos));
