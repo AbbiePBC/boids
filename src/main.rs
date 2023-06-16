@@ -1,3 +1,4 @@
+use std::ops::AddAssign;
 
 fn main() {
     // initialise flock
@@ -16,6 +17,10 @@ struct Flock {
 
 impl Flock {
     fn new(flock_size: usize, max_dist_before_boid_is_crowded: i32, max_dist_of_local_boid: i32) -> Flock {
+        if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
+            panic!("max_dist_before_boid_is_crowded must be smaller than max_dist_of_local_boid.\
+                Local boids are defined as boids within sight, but not close enough to crowd the boid");
+        }
         return Flock {
             boids: Self::generate_boids(flock_size),
             max_dist_before_boid_is_crowded,
@@ -47,15 +52,25 @@ impl Flock {
         self.boids[boid_to_update].y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_from_close_boids),
         )
     }
+    fn align_boid(&mut self, boid_to_update: usize,
+                  num_local_boids: i32, total_x_vel_of_local_boids: i32,
+                  total_y_vel_of_local_boids: i32){
+        // todo
+    }
+    fn cohere_boid(&mut self, boid_to_update: usize,
+                   num_local_boids: i32, total_x_dist_of_local_boids: i32,
+                   total_y_dist_of_local_boids: i32){
+        // todo
+    }
     fn update_boid(&mut self, boid_to_update: usize, repulsion_from_close_boids: i32) {
-        // todo: this initial implementation loops through all boids in the flock,
-        // which will need to be done for alignment and cohesion too, so don't do this
 
         // todo: also this doesn't consider where the boundaries of the frame are, so the boid could be steered out of the frame
         let mut total_x_dist_of_crowding_boids: i32 = 0;
         let mut total_y_dist_of_crowding_boids: i32 = 0;
         let mut num_crowding_boids: i32 = 0;
 
+        let mut total_of_local_boids: Boid = Boid::new(0, 0, 0, 0);
+        let mut num_local_boids: i32 = 0;
 
         let mut boid_idx = 0;
         for other_boid in &self.boids {
@@ -69,10 +84,18 @@ impl Flock {
                 total_x_dist_of_crowding_boids += other_boid.x_pos;
                 total_y_dist_of_crowding_boids += other_boid.y_pos;
             }
+            else if self.boids[boid_to_update].is_within_sight_of_local_boid(&other_boid, self.max_dist_of_local_boid) {
+                num_local_boids += 1;
+                total_of_local_boids += *other_boid;
+            }
         }
 
         if num_crowding_boids > 0 {
             Flock::uncrowd_boid(self, boid_to_update, repulsion_from_close_boids, num_crowding_boids, total_x_dist_of_crowding_boids, total_y_dist_of_crowding_boids);
+        }
+        if num_local_boids > 0 {
+            Flock::align_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_vel, total_of_local_boids.y_vel);
+            Flock::cohere_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_pos, total_of_local_boids.y_pos);
         }
     }
 }
@@ -100,6 +123,22 @@ impl Boid {
             (self.y_pos - other_boid.y_pos).abs() < max_dist_before_boid_is_crowded;
     }
 
+    fn is_within_sight_of_local_boid(&self, other_boid: &Boid, max_dist_of_local_boid: i32) -> bool {
+        return (self.x_pos - other_boid.x_pos).abs() < max_dist_of_local_boid &&
+            (self.y_pos - other_boid.y_pos).abs() < max_dist_of_local_boid;
+    }
+
+}
+
+impl AddAssign for Boid {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            x_pos: self.x_pos + other.x_pos,
+            y_pos: self.y_pos + other.y_pos,
+            x_vel: self.x_vel + other.x_vel,
+            y_vel: self.y_vel + other.y_vel,
+        };
+    }
 }
 
 
@@ -119,7 +158,7 @@ mod tests {
     }
     #[test]
     fn test_crowding_by_boid_inside_of_crowding_zone() {
-        let mut flock = Flock::new(0, 40, 5);
+        let mut flock = Flock::new(0, 40, 500);
         let boid = Boid::new(1, 1, 1, 1);
         let other_boid = Boid::new(10, 10, 2, 2);
         flock.boids = vec![boid, other_boid];
@@ -129,7 +168,7 @@ mod tests {
     }
     #[test]
     fn test_crowded_boid_has_updated_velocity() {
-        let mut flock = Flock::new(0, 40, 5);
+        let mut flock = Flock::new(0, 40, 500);
         let boid = Boid::new(1, 1, 1, 1);
         let other_boid = Boid::new(10, 10, 1, 5);
         flock.boids = vec![boid, other_boid];
@@ -146,6 +185,20 @@ mod tests {
         assert_eq!(flock.boids[1].x_vel, other_boid.x_vel + 1 * (other_boid.x_pos - flock.boids[0].x_pos));
         assert_eq!(flock.boids[1].y_vel, other_boid.y_vel + 1 * (other_boid.y_pos - flock.boids[0].y_pos));
 
+    }
+    #[test]
+    fn test_boid_outside_of_local_zone() {
+        let mut flock = Flock::new(0, 1, 50);
+        let boid = Boid::new(1, 1, 1, 1);
+        let other_boid = Boid::new(10, 10, 2, 2);
+        flock.boids = vec![boid, other_boid];
 
+        // not crowded
+        assert!(!flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_crowded));
+        assert!(!flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_crowded));
+
+        // but still within local zone
+        assert!(flock.boids[0].is_within_sight_of_local_boid(&flock.boids[1], flock.max_dist_of_local_boid));
+        assert!(flock.boids[1].is_within_sight_of_local_boid(&flock.boids[0], flock.max_dist_of_local_boid));
     }
 }
