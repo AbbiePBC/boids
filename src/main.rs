@@ -23,7 +23,17 @@ struct Flock {
     time_per_frame: i32,
 }
 
-fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Result<(f32, f32, f32), Vec<CreationError>> {
+fn validate_distances(max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32) -> Result<(), CreationError> {
+    if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
+         return Err(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
+    }
+    return Ok(());
+}
+
+// todo: there are too many inputs here; validate distances should be separate
+fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32,
+                   max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32) -> Result<(f32, f32, f32), Vec<CreationError>> {
+
     let repulsion = IntegerBetweenZeroAndOne::new(repulsion_factor, "repulsion".to_string());
     let adhesion =  IntegerBetweenZeroAndOne::new(adhesion_factor, "adhesion".to_string());
     let cohesion =  IntegerBetweenZeroAndOne::new(cohesion_factor, "cohesion".to_string());
@@ -33,6 +43,11 @@ fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor:
         .into_iter()
         .map(|x| x.map_err(|e| errors.push(e)).ok())
         .collect();
+
+    // todo: shouldn't rly go here but otherwise seem to end up with either unreachable code or early bails
+    if validate_distances(max_dist_before_boid_is_crowded, max_dist_of_local_boid).is_err(){
+        errors.push(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
+    }
 
     if errors.len() > 0 {
         return Err(errors);
@@ -46,8 +61,9 @@ fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor:
 impl Flock {
     fn new(flock_size: usize, max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32, repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Result<Flock> {
 
-        let result = validate_inputs(repulsion_factor, adhesion_factor, cohesion_factor);
-        match result {
+        // todo: these inputs are annoyingly not in the same order as the constructor
+        let inputs = validate_inputs(repulsion_factor, adhesion_factor, cohesion_factor, max_dist_before_boid_is_crowded, max_dist_of_local_boid);
+        match inputs {
             Ok((repulsion, adhesion, cohesion)) => return Ok(Flock {
                 boids: Self::generate_boids(flock_size),
                 max_dist_before_boid_is_crowded,
@@ -59,7 +75,6 @@ impl Flock {
             }),
             Err(e) => bail!("Invalid input: {:?}", e),
         }
-
 
     }
 
@@ -74,7 +89,6 @@ impl Flock {
     fn uncrowd_boid(&mut self, boid_to_update: usize,
         num_crowding_boids: i32, total_x_dist_of_crowding_boids: f32,
         total_y_dist_of_crowding_boids: f32) {
-
 
         // move away from the average position of the crowding boids
         let dist_to_ave_x_pos_of_crowding_boids: f32 = self.boids[boid_to_update].x_pos - (total_x_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
@@ -194,6 +208,7 @@ struct IntegerBetweenZeroAndOne(f32, String);
 enum CreationError {
     FactorShouldBeMoreThanZero(String),
     FactorShouldBeLessThanOne(String),
+    LocalEnvironmentIsSmallerThanCrowdingEnvironment,
 }
 
 impl IntegerBetweenZeroAndOne {
@@ -212,6 +227,7 @@ impl fmt::Display for CreationError {
         let description = match self {
             CreationError::FactorShouldBeMoreThanZero(factor_name) => factor_name.to_owned() + " factor is negative",
             CreationError::FactorShouldBeLessThanOne(factor_name) => factor_name.to_owned() + " factor is too large and should be below zero",
+            CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment => "local environment is smaller than (or equal to) crowding environment".to_owned(),
         };
         f.write_str(&description)
     }
@@ -223,6 +239,7 @@ impl error::Error for CreationError {}
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Context;
     use super::*;
     #[test]
     fn test_no_crowding_by_boid_outside_of_crowding_zone() {
@@ -324,11 +341,11 @@ mod tests {
         assert_eq!(flock.boids[0].y_vel, 2.5);
     }
     #[test]
-    fn test_incorrect_inputs() {
+    fn test_incorrect_factor_inputs() {
         let flock = Flock::new(0, 1.0, 50.0, 2.0, -20.2, 1.0);
         assert!(flock.is_err());
 
-        let result = validate_inputs(2.0, -4.9, 1.0);
+        let result = validate_inputs(2.0, -4.9, 1.0, 1.0, 55.0);
         assert!(result.is_err());
         let expected_errors = vec![
             CreationError::FactorShouldBeLessThanOne("repulsion".to_string()),
@@ -338,9 +355,25 @@ mod tests {
         assert_eq!(result, Err(expected_errors));
     }
     #[test]
+    fn test_incorrect_distance_inputs() {
+        let flock = Flock::new(0, 20.0, 2.0, 2.0, -20.2, 1.0);
+        assert!(flock.is_err());
+
+        let result = validate_inputs(0.2, 0.3, 0.2, 20.0, 2.0);
+        assert!(result.is_err());
+        assert_eq!(result, Err(vec![CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment]));
+    }
+    #[test]
+    fn test_all_creation_errors_reported() {
+        let result = validate_inputs(2.0, -4.9, 3.0, 20.0, 2.0);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error.len(), 4);
+    }
+    #[test]
     fn test_error_display() {
         assert_eq!(CreationError::FactorShouldBeLessThanOne("adhesion".to_string()).to_string(), "adhesion factor is too large and should be below zero".to_string());
         assert_eq!(CreationError::FactorShouldBeMoreThanZero("repulsion".to_string()).to_string(), "repulsion factor is negative".to_string());
-
+        assert_eq!(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment.to_string(), "local environment is smaller than (or equal to) crowding environment".to_string());
     }
 }
