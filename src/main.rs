@@ -1,4 +1,7 @@
 use std::ops::AddAssign;
+use std::error;
+use std::fmt;
+use anyhow::{bail, Result, Error, anyhow};
 
 fn main() {
     // initialise flock
@@ -9,6 +12,7 @@ fn main() {
 
 }
 
+#[derive(Debug)]
 struct Flock {
     boids: Vec<Boid>,
     max_dist_before_boid_is_crowded: f32,
@@ -19,23 +23,47 @@ struct Flock {
     time_per_frame: i32,
 }
 
-impl Flock {
-    fn new(flock_size: usize, max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32, repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Flock {
-        if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
-            panic!("max_dist_before_boid_is_crowded must be smaller than max_dist_of_local_boid.\
-                Local boids are defined as boids within sight, but not close enough to crowd the boid");
-        }
-        // panic if any factor > 1 or < 0
-        return Flock {
-            boids: Self::generate_boids(flock_size),
-            max_dist_before_boid_is_crowded,
-            max_dist_of_local_boid,
-            repulsion_factor,
-            adhesion_factor,
-            cohesion_factor,
-            time_per_frame: 1,
-        };
+fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Result<(f32, f32, f32), Vec<CreationError>> {
+    let repulsion = IntegerBetweenZeroAndOne::new(repulsion_factor, "repulsion".to_string());
+    let adhesion =  IntegerBetweenZeroAndOne::new(adhesion_factor, "adhesion".to_string());
+    let cohesion =  IntegerBetweenZeroAndOne::new(cohesion_factor, "cohesion".to_string());
+
+    let mut errors = vec![];
+    let optional_factors: Vec<_> = [repulsion, adhesion, cohesion]
+        .into_iter()
+        .map(|x| x.map_err(|e| errors.push(e)).ok())
+        .collect();
+
+    if errors.len() > 0 {
+        return Err(errors);
     }
+
+    return Ok((optional_factors[0].unwrap(), optional_factors[1].unwrap(), optional_factors[2].unwrap()));
+
+}
+
+
+impl Flock {
+    fn new(flock_size: usize, max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32, repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Result<Flock> {
+
+        let result = validate_inputs(repulsion_factor, adhesion_factor, cohesion_factor);
+        match result {
+            Ok((repulsion, adhesion, cohesion)) => return Ok(Flock {
+                boids: Self::generate_boids(flock_size),
+                max_dist_before_boid_is_crowded,
+                max_dist_of_local_boid,
+                repulsion_factor: repulsion,
+                adhesion_factor: adhesion,
+                cohesion_factor: cohesion,
+                time_per_frame: 1,
+            }),
+            Err(e) => bail!("Invalid input: {:?}", e),
+        }
+
+
+    }
+
+
     fn generate_boids<>(flock_size: usize) -> Vec<Boid> {
         let mut boids = Vec::new();
         for _ in 0..flock_size {
@@ -46,6 +74,7 @@ impl Flock {
     fn uncrowd_boid(&mut self, boid_to_update: usize,
         num_crowding_boids: i32, total_x_dist_of_crowding_boids: f32,
         total_y_dist_of_crowding_boids: f32) {
+
 
         // move away from the average position of the crowding boids
         let dist_to_ave_x_pos_of_crowding_boids: f32 = self.boids[boid_to_update].x_pos - (total_x_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
@@ -115,7 +144,7 @@ impl Flock {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct Boid {
     x_pos: f32,
     y_pos: f32,
@@ -158,12 +187,46 @@ impl AddAssign for Boid {
 
 
 
+#[derive(PartialEq, Debug)]
+struct IntegerBetweenZeroAndOne(f32, String);
+
+#[derive(PartialEq, Debug)]
+enum CreationError {
+    FactorShouldBeMoreThanZero(String),
+    FactorShouldBeLessThanOne(String),
+}
+
+impl IntegerBetweenZeroAndOne {
+    fn new(value: f32, factor: String) -> Result<f32, CreationError> {
+        match value {
+            x if x < 0.0 => Err(CreationError::FactorShouldBeMoreThanZero(factor)),
+            x if x > 1.0 => Err(CreationError::FactorShouldBeLessThanOne(factor)),
+            x => Ok(x)
+        }
+    }
+}
+
+// This is required so that `CreationError` can implement `error::Error`.
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let description = match self {
+            CreationError::FactorShouldBeMoreThanZero(factor_name) => factor_name.to_owned() + " factor is negative",
+            CreationError::FactorShouldBeLessThanOne(factor_name) => factor_name.to_owned() + " factor is too large and should be below zero",
+        };
+        f.write_str(&description)
+    }
+}
+
+impl error::Error for CreationError {}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn test_no_crowding_by_boid_outside_of_crowding_zone() {
-        let mut flock = Flock::new(0, 4.0, 5.0, 0.0, 0.0, 0.0);
+        let mut flock = Flock::new(0, 4.0, 5.0, 0.0, 0.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
         let other_boid = Boid::new(10.0, 10.0, 2.0, 2.0);
         flock.boids = vec![boid, other_boid];
@@ -174,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_crowding_by_boid_inside_of_crowding_zone() {
-        let mut flock = Flock::new(0, 40.0, 500.0, 0.0, 0.0, 0.0);
+        let mut flock = Flock::new(0, 40.0, 500.0, 0.0, 0.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
         let other_boid = Boid::new(10.0, 10.0, 2.0, 2.0);
         flock.boids = vec![boid, other_boid];
@@ -185,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_crowded_boid_has_updated_velocity() {
-        let mut flock = Flock::new(0, 40.0, 500.0, 0.0, 0.0, 0.0);
+        let mut flock = Flock::new(0, 40.0, 500.0, 0.0, 0.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
         let other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
         flock.boids = vec![boid, other_boid];
@@ -208,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_boid_outside_of_local_zone() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.0, 0.0);
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
         let other_boid = Boid::new(10.0, 10.0, 2.0, 2.0);
         flock.boids = vec![boid, other_boid];
@@ -224,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 1.0, 0.0);
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 1.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
@@ -237,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_no_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.0, 0.0);
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.0, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
@@ -250,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_half_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.5, 0.0);
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.5, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
@@ -260,5 +323,24 @@ mod tests {
         assert_eq!(flock.boids[0].x_vel, 5.5);
         assert_eq!(flock.boids[0].y_vel, 2.5);
     }
+    #[test]
+    fn test_incorrect_inputs() {
+        let flock = Flock::new(0, 1.0, 50.0, 2.0, -20.2, 1.0);
+        assert!(flock.is_err());
 
+        let result = validate_inputs(2.0, -4.9, 1.0);
+        assert!(result.is_err());
+        let expected_errors = vec![
+            CreationError::FactorShouldBeLessThanOne("repulsion".to_string()),
+            CreationError::FactorShouldBeMoreThanZero("adhesion".to_string()),
+        ];
+
+        assert_eq!(result, Err(expected_errors));
+    }
+    #[test]
+    fn test_error_display() {
+        assert_eq!(CreationError::FactorShouldBeLessThanOne("adhesion".to_string()).to_string(), "adhesion factor is too large and should be below zero".to_string());
+        assert_eq!(CreationError::FactorShouldBeMoreThanZero("repulsion".to_string()).to_string(), "repulsion factor is negative".to_string());
+
+    }
 }
