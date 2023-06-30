@@ -190,12 +190,10 @@ impl Boid {
 
 impl AddAssign for Boid {
     fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            x_pos: self.x_pos + other.x_pos,
-            y_pos: self.y_pos + other.y_pos,
-            x_vel: self.x_vel + other.x_vel,
-            y_vel: self.y_vel + other.y_vel,
-        };
+        self.x_pos += other.x_pos;
+        self.y_pos += other.y_pos;
+        self.x_vel += other.x_vel;
+        self.y_vel += other.y_vel;
     }
 }
 
