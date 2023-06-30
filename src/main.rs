@@ -364,9 +364,9 @@ mod tests {
     #[test]
     fn test_all_creation_errors_reported() {
         let result = validate_inputs(2.0, -4.9, 3.0, 20.0, 2.0);
-        assert!(result.is_err());
+        assert!(result.is_err(), "result should be an error but is {:?}", result);
         let error = result.unwrap_err();
-        assert_eq!(error.len(), 4);
+        assert_eq!(error.len(), 4, "expected 4 errors but got {:?}", error);
     }
     #[test]
     fn test_error_display() {
