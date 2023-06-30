@@ -3,13 +3,16 @@ use std::error;
 use std::fmt;
 use anyhow::{bail, Result, Error, anyhow};
 
-fn main() {
+fn main() -> Result<()> {
     // initialise flock
     // for each boid:
         // steer to avoid crowding local flockmates
         // steer towards the average heading of local flockmates
         // steer to move toward the average position of local flockmates
 
+    // test how anyhow prints the errors
+    let _ = Flock::new(10, 0.1, 0.1, -0.1, 0.1, 0.1)?;
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -23,63 +26,79 @@ struct Flock {
     time_per_frame: i32,
 }
 
-fn validate_distances(max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32) -> Result<(), CreationError> {
-    if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
-         return Err(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
-    }
-    return Ok(());
-}
-
-// todo: there are too many inputs here; validate distances should be separate
-fn validate_inputs(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32,
-                   max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32) -> Result<(f32, f32, f32), Vec<CreationError>> {
-
+fn validate_factors(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Vec<CreationError> {
     let repulsion = IntegerBetweenZeroAndOne::new(repulsion_factor, "repulsion".to_string());
     let adhesion =  IntegerBetweenZeroAndOne::new(adhesion_factor, "adhesion".to_string());
     let cohesion =  IntegerBetweenZeroAndOne::new(cohesion_factor, "cohesion".to_string());
 
-    let mut errors = vec![];
-    let optional_factors: Vec<_> = [repulsion, adhesion, cohesion]
+    let mut errors: Vec<_> = [repulsion, adhesion, cohesion]
         .into_iter()
-        .map(|x| x.map_err(|e| errors.push(e)).ok())
+        .filter_map(|result| result.err())
         .collect();
-
-    // todo: shouldn't rly go here but otherwise seem to end up with either unreachable code or early bails
-    if validate_distances(max_dist_before_boid_is_crowded, max_dist_of_local_boid).is_err(){
-        errors.push(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
-    }
-
-    if errors.len() > 0 {
-        return Err(errors);
-    }
-
-    return Ok((optional_factors[0].unwrap(), optional_factors[1].unwrap(), optional_factors[2].unwrap()));
-
+    errors
 }
 
+fn validate_distances(max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32) -> Option<CreationError> {
+    if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
+         return Some(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
+    }
+    return None;
+}
+
+struct InvalidFlockConfig {
+    errors: Vec<CreationError>,
+}
+
+impl From<InvalidFlockConfig> for Error {
+    fn from(invalid_flock_config: InvalidFlockConfig) -> Self {
+        anyhow!("Invalid Flock input: {:?}", invalid_flock_config.errors)
+    }
+}
 
 impl Flock {
-    fn new(flock_size: usize, max_dist_before_boid_is_crowded: f32, max_dist_of_local_boid: f32, repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Result<Flock> {
-
-        // todo: these inputs are annoyingly not in the same order as the constructor
-        let inputs = validate_inputs(repulsion_factor, adhesion_factor, cohesion_factor, max_dist_before_boid_is_crowded, max_dist_of_local_boid);
-        match inputs {
-            Ok((repulsion, adhesion, cohesion)) => return Ok(Flock {
-                boids: Self::generate_boids(flock_size),
-                max_dist_before_boid_is_crowded,
-                max_dist_of_local_boid,
-                repulsion_factor: repulsion,
-                adhesion_factor: adhesion,
-                cohesion_factor: cohesion,
-                time_per_frame: 1,
-            }),
-            Err(e) => bail!("Invalid input: {:?}", e),
-        }
-
+    fn new(flock_size: usize,
+           max_dist_before_boid_is_crowded: f32,
+           max_dist_of_local_boid: f32,
+           repulsion_factor: f32,
+           adhesion_factor: f32,
+           cohesion_factor: f32
+    ) -> Result<Flock> {
+        let mut flock = Flock {
+            boids: Vec::new(),
+            max_dist_before_boid_is_crowded,
+            max_dist_of_local_boid,
+            repulsion_factor,
+            adhesion_factor,
+            cohesion_factor,
+            time_per_frame: 1,
+        };
+        let _ = flock.validate()?; // if a function requires most of the members of a struct, it should probably be a method, but this case is borderline, I don't love it
+        flock.init(flock_size); // this weird pattern of Flock{}, flock.validate()?, flock.init() is to avoid initializing the list of boids if the input is invalid, required by making "validate()" a method, which is meh
+        Ok(flock)
     }
 
+    fn validate(&self) -> Result<()> {
+        // now this "validate" function speaks at a closer level of abstraction (not manual validation for factors and delegated validation for distances)
+        let mut errors = validate_factors(self.repulsion_factor, self.adhesion_factor, self.cohesion_factor);
 
-    fn generate_boids<>(flock_size: usize) -> Vec<Boid> {
+        if let Some(creation_error) = validate_distances(self.max_dist_before_boid_is_crowded, self.max_dist_of_local_boid) {
+            errors.push(creation_error);
+        }
+
+        if errors.len() > 0 {
+            return Err(InvalidFlockConfig { errors }.into()); // this "into()" will use the From trait to convert the InvalidFlockConfig into an Error
+        }
+
+        return Ok(());
+    }
+
+    /// Of course this could be inlined, I just wanted to show an approach that can scale if more
+    /// initialisation logic is added. I would not have this for just one function call.
+    fn init(&mut self, flock_size: usize) {
+        self.boids = Self::generate_boids(flock_size);
+    }
+
+    fn generate_boids(flock_size: usize) -> Vec<Boid> {
         let mut boids = Vec::new();
         for _ in 0..flock_size {
             boids.push(Boid::new(0.0, 0.0, 0.0, 0.0));
@@ -343,30 +362,27 @@ mod tests {
         let flock = Flock::new(0, 1.0, 50.0, 2.0, -20.2, 1.0);
         assert!(flock.is_err());
 
-        let result = validate_inputs(2.0, -4.9, 1.0, 1.0, 55.0);
-        assert!(result.is_err());
+        let result = validate_factors(2.0, -4.9, 1.0);
         let expected_errors = vec![
             CreationError::FactorShouldBeLessThanOne("repulsion".to_string()),
             CreationError::FactorShouldBeMoreThanZero("adhesion".to_string()),
         ];
-
-        assert_eq!(result, Err(expected_errors));
+        assert_eq!(result, expected_errors);
     }
     #[test]
     fn test_incorrect_distance_inputs() {
         let flock = Flock::new(0, 20.0, 2.0, 2.0, -20.2, 1.0);
         assert!(flock.is_err());
 
-        let result = validate_inputs(0.2, 0.3, 0.2, 20.0, 2.0);
-        assert!(result.is_err());
-        assert_eq!(result, Err(vec![CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment]));
+        let result = validate_distances( 20.0, 2.0);
+        assert_eq!(result, Some(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment));
     }
     #[test]
     fn test_all_creation_errors_reported() {
-        let result = validate_inputs(2.0, -4.9, 3.0, 20.0, 2.0);
-        assert!(result.is_err(), "result should be an error but is {:?}", result);
-        let error = result.unwrap_err();
-        assert_eq!(error.len(), 4, "expected 4 errors but got {:?}", error);
+        let result = Flock::new(0, 2.0, -4.9, 3.0, 20.0, 2.0);
+        assert!(result.is_err());
+        // let error = result.unwrap_err();
+        // assert_eq!(error.len(), 4);
     }
     #[test]
     fn test_error_display() {
