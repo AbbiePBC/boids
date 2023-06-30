@@ -45,6 +45,7 @@ fn validate_distances(max_dist_before_boid_is_crowded: f32, max_dist_of_local_bo
     return None;
 }
 
+#[derive(Debug)]
 struct InvalidFlockConfig {
     errors: Vec<CreationError>,
 }
@@ -62,7 +63,7 @@ impl Flock {
            repulsion_factor: f32,
            adhesion_factor: f32,
            cohesion_factor: f32
-    ) -> Result<Flock> {
+    ) -> Result<Flock, InvalidFlockConfig> {
         let mut flock = Flock {
             boids: Vec::new(),
             max_dist_before_boid_is_crowded,
@@ -77,7 +78,7 @@ impl Flock {
         Ok(flock)
     }
 
-    fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<(), InvalidFlockConfig> {
         // now this "validate" function speaks at a closer level of abstraction (not manual validation for factors and delegated validation for distances)
         let mut errors = validate_factors(self.repulsion_factor, self.adhesion_factor, self.cohesion_factor);
 
@@ -86,7 +87,7 @@ impl Flock {
         }
 
         if errors.len() > 0 {
-            return Err(InvalidFlockConfig { errors }.into()); // this "into()" will use the From trait to convert the InvalidFlockConfig into an Error
+            return Err(InvalidFlockConfig { errors }); // this "into()" will use the From trait to convert the InvalidFlockConfig into an Error
         }
 
         return Ok(());
@@ -375,8 +376,8 @@ mod tests {
     fn test_all_creation_errors_reported() {
         let result = Flock::new(0, 2.0, -4.9, 3.0, 20.0, 2.0);
         assert!(result.is_err());
-        // let error = result.unwrap_err();
-        // assert_eq!(error.len(), 4);
+        let error = result.unwrap_err();
+        assert_eq!(error.errors.len(), 4);
     }
     #[test]
     fn test_error_display() {
