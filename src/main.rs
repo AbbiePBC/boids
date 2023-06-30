@@ -27,13 +27,13 @@ struct Flock {
 }
 
 fn validate_factors(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Vec<CreationError> {
-    let repulsion = IntegerBetweenZeroAndOne::new(repulsion_factor, "repulsion".to_string());
-    let adhesion =  IntegerBetweenZeroAndOne::new(adhesion_factor, "adhesion".to_string());
-    let cohesion =  IntegerBetweenZeroAndOne::new(cohesion_factor, "cohesion".to_string());
+    let repulsion = check_float_between_zero_and_one(repulsion_factor, "repulsion".to_string());
+    let adhesion =  check_float_between_zero_and_one(adhesion_factor, "adhesion".to_string());
+    let cohesion =  check_float_between_zero_and_one(cohesion_factor, "cohesion".to_string());
 
     let mut errors: Vec<_> = [repulsion, adhesion, cohesion]
         .into_iter()
-        .filter_map(|result| result.err())
+        .filter_map(|option| option)
         .collect();
     errors
 }
@@ -217,25 +217,19 @@ impl AddAssign for Boid {
 }
 
 
-
-#[derive(PartialEq, Debug)]
-struct IntegerBetweenZeroAndOne(f32, String);
+fn check_float_between_zero_and_one(value: f32, name: String) -> Option<CreationError> {
+    match value {
+        x if x < 0.0 => Some(CreationError::FactorShouldBeMoreThanZero(name)),
+        x if x > 1.0 => Some(CreationError::FactorShouldBeLessThanOne(name)),
+        _ => None
+    }
+}
 
 #[derive(PartialEq, Debug)]
 enum CreationError {
     FactorShouldBeMoreThanZero(String),
     FactorShouldBeLessThanOne(String),
     LocalEnvironmentIsSmallerThanCrowdingEnvironment,
-}
-
-impl IntegerBetweenZeroAndOne {
-    fn new(value: f32, factor: String) -> Result<f32, CreationError> {
-        match value {
-            x if x < 0.0 => Err(CreationError::FactorShouldBeMoreThanZero(factor)),
-            x if x > 1.0 => Err(CreationError::FactorShouldBeLessThanOne(factor)),
-            x => Ok(x)
-        }
-    }
 }
 
 // This is required so that `CreationError` can implement `error::Error`.
