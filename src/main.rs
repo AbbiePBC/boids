@@ -18,7 +18,7 @@ fn main() -> Result<()> {
 #[derive(Debug)]
 struct Flock {
     boids: Vec<Boid>,
-    max_dist_before_boid_is_crowded: f32,
+    max_dist_before_boid_is_no_longer_crowded: f32,
     max_dist_of_local_boid: f32, // i.e. the radius of the local flock; far boids in the flock don't influence a boid's behaviour
     repulsion_factor: f32, // how much a boid wants to move away from other boids
     adhesion_factor: f32, // how much a boid wants to stay with the flock
@@ -69,7 +69,7 @@ impl Flock {
     ) -> Result<Flock, InvalidFlockConfig> {
         let mut flock = Flock {
             boids: Vec::new(),
-            max_dist_before_boid_is_crowded,
+            max_dist_before_boid_is_no_longer_crowded: max_dist_before_boid_is_crowded,
             max_dist_of_local_boid,
             repulsion_factor,
             adhesion_factor,
@@ -85,7 +85,7 @@ impl Flock {
 
         let mut errors = validate_factors(self.repulsion_factor, self.adhesion_factor, self.cohesion_factor);
 
-        if let Some(creation_error) = validate_distances(self.max_dist_before_boid_is_crowded, self.max_dist_of_local_boid) {
+        if let Some(creation_error) = validate_distances(self.max_dist_before_boid_is_no_longer_crowded, self.max_dist_of_local_boid) {
             errors.push(creation_error);
         }
 
@@ -160,7 +160,7 @@ impl Flock {
                 continue;
             }
             boid_idx += 1;
-            if self.boids[boid_to_update].is_crowded_by_boid(&other_boid, self.max_dist_before_boid_is_crowded) {
+            if self.boids[boid_to_update].is_crowded_by_boid(&other_boid, self.max_dist_before_boid_is_no_longer_crowded) {
                 num_crowding_boids += 1;
                 total_x_dist_of_crowding_boids += other_boid.x_pos;
                 total_y_dist_of_crowding_boids += other_boid.y_pos;
@@ -264,8 +264,8 @@ mod tests {
         let other_boid = Boid::new(10.0, 10.0, 2.0, 2.0);
         flock.boids = vec![boid, other_boid];
 
-        assert!(!flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_crowded));
-        assert!(!flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_crowded));
+        assert!(!flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_no_longer_crowded));
+        assert!(!flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_no_longer_crowded));
     }
 
     #[test]
@@ -275,8 +275,8 @@ mod tests {
         let other_boid = Boid::new(10.0, 10.0, 2.0, 2.0);
         flock.boids = vec![boid, other_boid];
 
-        assert!(flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_crowded));
-        assert!(flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_crowded));
+        assert!(flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_no_longer_crowded));
+        assert!(flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_no_longer_crowded));
     }
 
     #[test]
@@ -310,8 +310,8 @@ mod tests {
         flock.boids = vec![boid, other_boid];
 
         // not crowded
-        assert!(!flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_crowded));
-        assert!(!flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_crowded));
+        assert!(!flock.boids[0].is_crowded_by_boid(&flock.boids[1], flock.max_dist_before_boid_is_no_longer_crowded));
+        assert!(!flock.boids[1].is_crowded_by_boid(&flock.boids[0], flock.max_dist_before_boid_is_no_longer_crowded));
 
         // but still within local zone
         assert!(flock.boids[0].is_within_sight_of_local_boid(&flock.boids[1], flock.max_dist_of_local_boid));
