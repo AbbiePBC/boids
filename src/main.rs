@@ -3,7 +3,7 @@ use std::error;
 use std::fmt;
 use anyhow::{bail, Result, Error, anyhow};
 
-fn main() -> Result<()> {
+fn main() -> Result<(), E> {
     // initialise flock
     // for each boid:
         // steer to avoid crowding local flockmates
@@ -200,9 +200,9 @@ impl Boid {
         };
     }
 
-    fn is_crowded_by_boid(&self, other_boid: &Boid, max_dist_before_boid_is_crowded: f32) -> bool {
-        return (self.x_pos - other_boid.x_pos).abs() < max_dist_before_boid_is_crowded &&
-            (self.y_pos - other_boid.y_pos).abs() < max_dist_before_boid_is_crowded;
+    fn is_crowded_by_boid(&self, other_boid: &Boid, max_dist_before_boid_is_no_longer_crowded: f32) -> bool {
+        return (self.x_pos - other_boid.x_pos).abs() < max_dist_before_boid_is_no_longer_crowded &&
+            (self.y_pos - other_boid.y_pos).abs() < max_dist_before_boid_is_no_longer_crowded;
     }
 
     fn is_within_sight_of_local_boid(&self, other_boid: &Boid, max_dist_of_local_boid: f32) -> bool {
