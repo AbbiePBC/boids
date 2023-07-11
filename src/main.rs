@@ -118,9 +118,10 @@ impl Flock {
         let dist_to_ave_y_pos_of_crowding_boids: f32 = self.boids[boid_to_update].y_pos - (total_y_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
 
         // update velocity to move away from the average boid position within the crowding flock
+        // v = d/t
         self.boids[boid_to_update] = Boid {
-            x_vel: self.boids[boid_to_update].x_vel + (dist_to_ave_x_pos_of_crowding_boids * self.repulsion_factor),
-            y_vel: self.boids[boid_to_update].y_vel + (dist_to_ave_y_pos_of_crowding_boids * self.repulsion_factor),
+            x_vel: self.boids[boid_to_update].x_vel + (dist_to_ave_x_pos_of_crowding_boids * self.repulsion_factor)/self.time_per_frame as f32,
+            y_vel: self.boids[boid_to_update].y_vel + (dist_to_ave_y_pos_of_crowding_boids * self.repulsion_factor)/self.time_per_frame as f32,
             x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
             y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
         }
@@ -134,6 +135,8 @@ impl Flock {
         self.boids[boid_to_update] = Boid {
             x_vel: self.boids[boid_to_update].x_vel + ((average_x_vel - self.boids[boid_to_update].x_vel) * self.adhesion_factor),
             y_vel: self.boids[boid_to_update].y_vel + ((average_y_vel - self.boids[boid_to_update].y_vel) * self.adhesion_factor),
+            // the following positions are not the positions at the end of the step,
+            // but would be if no cohesion took place
             x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
             y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
         }
@@ -141,7 +144,18 @@ impl Flock {
     fn cohere_boid(&mut self, boid_to_update: usize,
                    num_local_boids: i32, total_x_dist_of_local_boids: f32,
                    total_y_dist_of_local_boids: f32){
-        // todo
+
+        // move towards the ave position of the local flock, so this is the reverse of uncrowding
+        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids as f32 / num_local_boids as f32) - self.boids[boid_to_update].x_pos;
+        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids as f32 / num_local_boids as f32) - self.boids[boid_to_update].y_pos;
+
+        // update the boid's position to move towards the average position of the local flock, by some cohesion factor
+        self.boids[boid_to_update] = Boid {
+            x_vel: self.boids[boid_to_update].x_vel + (dist_to_ave_x_pos_of_local_boids * self.cohesion_factor) / self.time_per_frame as f32,
+            y_vel: self.boids[boid_to_update].y_vel + (dist_to_ave_y_pos_of_local_boids * self.cohesion_factor) / self.time_per_frame as f32,
+            x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
+            y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
+        }
     }
     fn update_boid(&mut self, boid_to_update: usize) {
 
@@ -172,9 +186,15 @@ impl Flock {
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
+        // todo: by doing each of these changes, the position changes are updated each time
+        // this is fine for the crowded boids, as only 1 function is applied (so there is only 1 time interval)
+        // but for the local boids, 2 functions are applied, and so the **actual** time per frame is 2* the defined time
+        // so, either we should divide the time_per_frame by 2 for the local boids (which could be confusing)
+        // or we should update the boid's position only once, after the aligning and cohesion updates to the velocity have taken place
         if num_crowding_boids > 0 {
             Flock::uncrowd_boid(self, boid_to_update, num_crowding_boids, total_x_dist_of_crowding_boids, total_y_dist_of_crowding_boids);
         }
+
         if num_local_boids > 0 {
             Flock::align_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_vel, total_of_local_boids.y_vel);
             Flock::cohere_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_pos, total_of_local_boids.y_pos);
@@ -356,6 +376,25 @@ mod tests {
         assert_eq!(flock.boids[0].x_vel, 5.5);
         assert_eq!(flock.boids[0].y_vel, 2.5);
     }
+
+    #[test]
+    fn test_cohesion(){
+        // if the cohesion_factor is one, the velocity should update such that
+        // the position of the boid is the same as the position of the average boid position
+        todo!();
+    }
+    #[test]
+    fn test_no_cohesion(){
+        // if the cohesion_factor is zero, the velocity should not change
+        todo!();
+    }
+    #[test]
+    fn test_half_cohesion(){
+        // if the cohesion_factor is 0.5, the velocity should update such that
+        // the position of the boid is halfway between the current position and the position of the average boid position
+        todo!();
+    }
+
     #[test]
     fn test_incorrect_factor_inputs() {
         let flock = Flock::new(0, 1.0, 50.0, 2.0, -20.2, 1.0);
