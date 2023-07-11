@@ -57,6 +57,9 @@ impl From<InvalidFlockConfig> for Error {
 }
 
 impl Flock {
+    /// the pattern of Flock{}, flock.validate()?, flock.init() is used to avoid
+    /// initializing the list of boids if the input is invalid,
+    /// required by making "validate()" a method
     fn new(flock_size: usize,
            max_dist_before_boid_is_crowded: f32,
            max_dist_of_local_boid: f32,
@@ -73,13 +76,13 @@ impl Flock {
             cohesion_factor,
             time_per_frame: 1,
         };
-        let _ = flock.validate()?; // if a function requires most of the members of a struct, it should probably be a method, but this case is borderline, I don't love it
-        flock.init(flock_size); // this weird pattern of Flock{}, flock.validate()?, flock.init() is to avoid initializing the list of boids if the input is invalid, required by making "validate()" a method, which is meh
+        let _ = flock.validate()?;
+        flock.init(flock_size);
         Ok(flock)
     }
 
     fn validate(&self) -> Result<(), InvalidFlockConfig> {
-        // now this "validate" function speaks at a closer level of abstraction (not manual validation for factors and delegated validation for distances)
+
         let mut errors = validate_factors(self.repulsion_factor, self.adhesion_factor, self.cohesion_factor);
 
         if let Some(creation_error) = validate_distances(self.max_dist_before_boid_is_crowded, self.max_dist_of_local_boid) {
@@ -87,14 +90,14 @@ impl Flock {
         }
 
         if errors.len() > 0 {
-            return Err(InvalidFlockConfig { errors }); // this "into()" will use the From trait to convert the InvalidFlockConfig into an Error
+            return Err(InvalidFlockConfig { errors }); // the "into()" will use the From trait to convert the InvalidFlockConfig into an Error
         }
 
         return Ok(());
     }
 
-    /// Of course this could be inlined, I just wanted to show an approach that can scale if more
-    /// initialisation logic is added. I would not have this for just one function call.
+    /// Not necessary to split this out for a single fn call
+    /// But done to show how initialisation can be done in a separate function
     fn init(&mut self, flock_size: usize) {
         self.boids = Self::generate_boids(flock_size);
     }
@@ -166,6 +169,7 @@ impl Flock {
                 num_local_boids += 1;
                 total_of_local_boids += *other_boid;
             }
+            // else, the other_boid is too far away to affect the boid we're updating
         }
 
         if num_crowding_boids > 0 {
