@@ -3,7 +3,7 @@ use std::error;
 use std::fmt;
 use anyhow::{bail, Result, Error, anyhow};
 
-fn main() -> Result<(), E> {
+fn main() -> Result<(), anyhow::Error> {
     // initialise flock
     // for each boid:
         // steer to avoid crowding local flockmates
