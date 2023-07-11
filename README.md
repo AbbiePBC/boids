@@ -1,5 +1,7 @@
 ## BOIDS
 
+![build and test workflow](https://github.com/AbbiePBC/boids/actions/workflows/workflow.yml/badge.svg)
+
 This is a simple implementation of the boids algorithm in rust. The boids algorithm is a simple algorithm that simulates the flocking behavior of birds.
 The algorithm is based on three simple rules as described [here](https://www.red3d.com/cwr/boids/) by the original author.
 
