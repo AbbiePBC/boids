@@ -3,6 +3,7 @@ use std::error;
 use std::fmt;
 use macroquad::prelude::*;
 use anyhow::{bail, Result, Error, anyhow};
+use crate::{FRAME_HEIGHT, FRAME_WIDTH};
 
 #[derive(Debug)]
 pub(crate) struct Flock {
@@ -71,7 +72,6 @@ impl Flock {
     }
 
     fn validate(&self) -> Result<(), InvalidFlockConfig> {
-
         let mut errors = validate_factors(self.repulsion_factor, self.adhesion_factor, self.cohesion_factor);
 
         if let Some(creation_error) = validate_distances(self.max_dist_before_boid_is_no_longer_crowded, self.max_dist_of_local_boid) {
@@ -116,9 +116,9 @@ impl Flock {
     }
     fn align_boid(&mut self, boid_to_update: usize,
                   num_local_boids: i32, total_x_vel_of_local_boids: f32,
-                  total_y_vel_of_local_boids: f32){
-        let average_x_vel : f32 = total_x_vel_of_local_boids as f32 / num_local_boids as f32;
-        let average_y_vel : f32 = total_y_vel_of_local_boids as f32 / num_local_boids as f32;
+                  total_y_vel_of_local_boids: f32) {
+        let average_x_vel: f32 = total_x_vel_of_local_boids as f32 / num_local_boids as f32;
+        let average_y_vel: f32 = total_y_vel_of_local_boids as f32 / num_local_boids as f32;
         // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
         self.boids[boid_to_update] = Boid {
             x_vel: self.boids[boid_to_update].x_vel + ((average_x_vel - self.boids[boid_to_update].x_vel) * self.adhesion_factor),
@@ -129,12 +129,11 @@ impl Flock {
     }
     fn cohere_boid(&mut self, boid_to_update: usize,
                    num_local_boids: i32, total_x_dist_of_local_boids: f32,
-                   total_y_dist_of_local_boids: f32){
+                   total_y_dist_of_local_boids: f32) {
         // todo
     }
     pub(crate) fn update_boid(&mut self, boid_to_update: usize) {
 
-        // todo: also **this doesn't consider where the boundaries of the frame are**, so the boid could be steered out of the frame
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
         let mut num_crowding_boids: i32 = 0;
@@ -153,8 +152,7 @@ impl Flock {
                 num_crowding_boids += 1;
                 total_x_dist_of_crowding_boids += other_boid.x_pos;
                 total_y_dist_of_crowding_boids += other_boid.y_pos;
-            }
-            else if self.boids[boid_to_update].is_within_sight_of_local_boid(&other_boid, self.max_dist_of_local_boid) {
+            } else if self.boids[boid_to_update].is_within_sight_of_local_boid(&other_boid, self.max_dist_of_local_boid) {
                 num_local_boids += 1;
                 total_of_local_boids += *other_boid;
             }
@@ -178,6 +176,17 @@ impl Flock {
                 x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
                 y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
             }
+        }
+
+        self.maybe_reflect_off_boundaries(boid_to_update);
+    }
+
+    fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
+        if self.boids[boid_to_update].x_pos.abs() >= (FRAME_WIDTH / 2) as f32 {
+            self.boids[boid_to_update].x_vel = -self.boids[boid_to_update].x_vel;
+        }
+        if self.boids[boid_to_update].y_pos.abs() >= (FRAME_HEIGHT / 2) as f32 {
+            self.boids[boid_to_update].y_vel = -self.boids[boid_to_update].y_vel;
         }
     }
 }

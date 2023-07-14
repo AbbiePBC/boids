@@ -3,11 +3,14 @@ mod boids;
 use crate::boids::{Boid, Flock};
 use macroquad::prelude::*;
 
+const FRAME_WIDTH: i32 = 800;
+const FRAME_HEIGHT: i32 = 500;
+
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
     let flock_size = 4;
-    let mid_screen_height = screen_height()/2.0;
-    let mid_screen_width = screen_width()/2.0;
+    let mid_screen_height = (FRAME_HEIGHT/2) as f32;
+    let mid_screen_width = (FRAME_WIDTH/2) as  f32;
     let mut flock = Flock::new(flock_size, 100.0, 200.0, 1.0, 1.0, 1.0)?;
 
     // psuedo-randomly generate boids
