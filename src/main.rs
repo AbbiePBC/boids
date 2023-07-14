@@ -1,18 +1,40 @@
+
 use std::ops::AddAssign;
 use std::error;
 use std::fmt;
+use macroquad::prelude::*;
 use anyhow::{bail, Result, Error, anyhow};
+use macroquad::prelude::coroutines::wait_seconds;
 
-fn main() -> Result<(), anyhow::Error> {
-    // initialise flock
-    // for each boid:
-        // steer to avoid crowding local flockmates
-        // steer towards the average heading of local flockmates
-        // steer to move toward the average position of local flockmates
+#[macroquad::main("Boids")]
+async fn main() -> Result<(), anyhow::Error> {
+    let flock_size = 4;
+    let mid_screen_height = screen_height()/2.0;
+    let mid_screen_width = screen_width()/2.0;
+    let mut flock = Flock::new(flock_size, 100.0, 200.0, 1.0, 1.0, 1.0)?;
 
-    // test how anyhow prints the errors
-    let _ = Flock::new(10, 0.1, 0.1, -0.1, 0.1, 0.1)?;
-    Ok(())
+    // psuedo-randomly generate boids
+    // TODO: actually randomly generated the starting positions
+    let boid_one = Boid::new(mid_screen_width + 40.0, mid_screen_height - 10.0, -14.0, 13.0);
+    let boid_two = Boid::new(mid_screen_width - 20.0,  mid_screen_height - 11.0, 16.0, -14.0);
+    let boid_three = Boid::new(mid_screen_width + 20.0, mid_screen_height - 12.0, -8.0, 15.0);
+    let boid_four = Boid::new(mid_screen_width - 40.0, mid_screen_height - 13.0, 15.0, 0.0);
+    flock.boids = vec![boid_one, boid_two, boid_three, boid_four];
+
+    loop {
+        clear_background(WHITE);
+
+        for i in 0..flock_size {
+            draw_boid(i, &mut flock);
+        }
+        next_frame().await
+    }
+}
+
+fn draw_boid(i : usize, flock: &mut Flock){
+    let boid = flock.boids[i];
+    flock.update_boid(i);
+    draw_circle(boid.x_pos, boid.y_pos, 13.0, DARKGRAY);
 }
 
 #[derive(Debug)]
@@ -145,7 +167,7 @@ impl Flock {
     }
     fn update_boid(&mut self, boid_to_update: usize) {
 
-        // todo: also this doesn't consider where the boundaries of the frame are, so the boid could be steered out of the frame
+        // todo: also **this doesn't consider where the boundaries of the frame are**, so the boid could be steered out of the frame
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
         let mut num_crowding_boids: i32 = 0;
@@ -178,6 +200,17 @@ impl Flock {
         if num_local_boids > 0 {
             Flock::align_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_vel, total_of_local_boids.y_vel);
             Flock::cohere_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_pos, total_of_local_boids.y_pos);
+        }
+        // todo: test the following
+        if num_local_boids == 0 && num_crowding_boids == 0 {
+            // boid is unaffected by other boids, continue moving in same direction
+            // maybe a random direction would be more realistic idk
+            self.boids[boid_to_update] = Boid {
+                x_vel: self.boids[boid_to_update].x_vel,
+                y_vel: self.boids[boid_to_update].y_vel,
+                x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
+                y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
+            }
         }
     }
 }
