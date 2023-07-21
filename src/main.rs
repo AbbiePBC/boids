@@ -3,15 +3,16 @@ mod boids;
 use crate::boids::{Boid, Flock};
 use macroquad::prelude::*;
 
-const FRAME_WIDTH: i32 = 800;
-const FRAME_HEIGHT: i32 = 500;
-
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
-    let flock_size = 4;
-    let mid_screen_height = (FRAME_HEIGHT/2) as f32;
-    let mid_screen_width = (FRAME_WIDTH/2) as  f32;
+
+    let flock_size = 10;
     let mut flock = Flock::new(flock_size, 100.0, 200.0, 1.0, 1.0, 1.0)?;
+    flock.frame_width = macroquad::window::screen_width() as i32;
+    flock.frame_height = macroquad::window::screen_height() as i32;
+
+    let mid_screen_height = (flock.frame_height/2) as f32;
+    let mid_screen_width = (flock.frame_width/2) as  f32;
 
     // psuedo-randomly generate boids
     // TODO: actually randomly generated the starting positions
@@ -23,7 +24,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     loop {
         clear_background(WHITE);
-
         for i in 0..flock_size {
             draw_boid(i, &mut flock);
         }
@@ -32,8 +32,9 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 fn draw_boid(i : usize, flock: &mut Flock){
+    let colours = [RED, BLUE, GREEN, YELLOW];
     let boid = flock.boids[i];
     flock.update_boid(i);
-    draw_circle(boid.x_pos, boid.y_pos, 13.0, DARKGRAY);
+    draw_circle(boid.x_pos, boid.y_pos, 13.0, colours[(i%colours.len())]);
 }
 

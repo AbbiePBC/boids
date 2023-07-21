@@ -3,7 +3,6 @@ use std::error;
 use std::fmt;
 use macroquad::prelude::*;
 use anyhow::{bail, Result, Error, anyhow};
-use crate::{FRAME_HEIGHT, FRAME_WIDTH};
 
 #[derive(Debug)]
 pub(crate) struct Flock {
@@ -14,6 +13,8 @@ pub(crate) struct Flock {
     adhesion_factor: f32, // how much a boid wants to stay with the flock
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
     time_per_frame: i32,
+    pub(crate) frame_width: i32,
+    pub(crate) frame_height: i32,
 }
 
 fn validate_factors(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Vec<CreationError> {
@@ -55,7 +56,8 @@ impl Flock {
                       max_dist_of_local_boid: f32,
                       repulsion_factor: f32,
                       adhesion_factor: f32,
-                      cohesion_factor: f32
+                      cohesion_factor: f32,
+
     ) -> Result<Flock, InvalidFlockConfig> {
         let mut flock = Flock {
             boids: Vec::new(),
@@ -65,6 +67,8 @@ impl Flock {
             adhesion_factor,
             cohesion_factor,
             time_per_frame: 1,
+            frame_width: 800,
+            frame_height: 500,
         };
         let _ = flock.validate()?;
         flock.init(flock_size);
@@ -182,10 +186,10 @@ impl Flock {
     }
 
     fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
-        if self.boids[boid_to_update].x_pos.abs() >= (FRAME_WIDTH / 2) as f32 {
+        if self.boids[boid_to_update].x_pos.abs() >= ((self.frame_width - 1)/2) as f32 {
             self.boids[boid_to_update].x_vel = -self.boids[boid_to_update].x_vel;
         }
-        if self.boids[boid_to_update].y_pos.abs() >= (FRAME_HEIGHT / 2) as f32 {
+        if self.boids[boid_to_update].y_pos.abs() >= ((self.frame_height - 1)/2) as f32 {
             self.boids[boid_to_update].y_vel = -self.boids[boid_to_update].y_vel;
         }
     }
