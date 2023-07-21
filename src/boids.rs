@@ -3,9 +3,12 @@ use std::error;
 use std::fmt;
 use macroquad::prelude::*;
 use anyhow::{bail, Result, Error, anyhow};
+extern crate rand;
+use rand::{Rng, thread_rng};
 
 #[derive(Debug)]
 pub(crate) struct Flock {
+    pub(crate) flock_size: usize,
     pub(crate) boids: Vec<Boid>,
     max_dist_before_boid_is_no_longer_crowded: f32,
     max_dist_of_local_boid: f32, // i.e. the radius of the local flock; far boids in the flock don't influence a boid's behaviour
@@ -13,8 +16,8 @@ pub(crate) struct Flock {
     adhesion_factor: f32, // how much a boid wants to stay with the flock
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
     time_per_frame: i32,
-    pub(crate) frame_width: i32,
-    pub(crate) frame_height: i32,
+    pub(crate) frame_width: f32,
+    pub(crate) frame_height: f32,
 }
 
 fn validate_factors(repulsion_factor: f32, adhesion_factor: f32, cohesion_factor: f32) -> Vec<CreationError> {
@@ -60,6 +63,7 @@ impl Flock {
 
     ) -> Result<Flock, InvalidFlockConfig> {
         let mut flock = Flock {
+            flock_size,
             boids: Vec::new(),
             max_dist_before_boid_is_no_longer_crowded: max_dist_before_boid_is_crowded,
             max_dist_of_local_boid,
@@ -67,11 +71,11 @@ impl Flock {
             adhesion_factor,
             cohesion_factor,
             time_per_frame: 1,
-            frame_width: 800,
-            frame_height: 500,
+            frame_width: 800.0,
+            frame_height: 500.0,
         };
         let _ = flock.validate()?;
-        flock.init(flock_size);
+        flock.init();
         Ok(flock)
     }
 
@@ -91,17 +95,33 @@ impl Flock {
 
     /// Not necessary to split this out for a single fn call
     /// But done to show how initialisation can be done in a separate function
-    fn init(&mut self, flock_size: usize) {
-        self.boids = Self::generate_boids(flock_size);
+    fn init(&mut self) {
+        self.boids = self.generate_boids();
     }
 
-    fn generate_boids(flock_size: usize) -> Vec<Boid> {
+    fn generate_boids(&self) -> Vec<Boid> {
         let mut boids = Vec::new();
-        for _ in 0..flock_size {
+        for _ in 0..self.flock_size {
             boids.push(Boid::new(0.0, 0.0, 0.0, 0.0));
         }
         return boids;
     }
+    pub(crate) fn randomly_generate_boids(&mut self) {
+        let mut rng = thread_rng();
+        let mut boids = Vec::new();
+        let mid_frame_x = self.frame_width as f32 / 2.0;
+        let mid_frame_y = self.frame_height as f32 / 2.0;
+        let max_starting_dist_from_mid_x = self.frame_width as f32 / 10.0;
+        let max_starting_dist_from_mid_y = self.frame_height as f32 / 10.0;
+        for _ in 0..self.flock_size {
+            boids.push(Boid::new(mid_frame_x + rng.gen_range(-max_starting_dist_from_mid_x..max_starting_dist_from_mid_x),
+                                 mid_frame_y + rng.gen_range(-max_starting_dist_from_mid_y..max_starting_dist_from_mid_y),
+                                 rng.gen_range(-5.0..5.0), rng.gen_range(-5.0..5.0)));
+        }
+
+        self.boids = boids;
+    }
+
     fn uncrowd_boid(&mut self, boid_to_update: usize,
                     num_crowding_boids: i32, total_x_dist_of_crowding_boids: f32,
                     total_y_dist_of_crowding_boids: f32) {
@@ -186,10 +206,10 @@ impl Flock {
     }
 
     fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
-        if self.boids[boid_to_update].x_pos.abs() >= ((self.frame_width - 1)/2) as f32 {
+        if self.boids[boid_to_update].x_pos.abs() >= (self.frame_width - 1.0)/2.0 {
             self.boids[boid_to_update].x_vel = -self.boids[boid_to_update].x_vel;
         }
-        if self.boids[boid_to_update].y_pos.abs() >= ((self.frame_height - 1)/2) as f32 {
+        if self.boids[boid_to_update].y_pos.abs() >= (self.frame_height - 1.0)/2.0 {
             self.boids[boid_to_update].y_vel = -self.boids[boid_to_update].y_vel;
         }
     }
