@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
+macroquad = "=0.3.25"
+rand = "0.8.1"
