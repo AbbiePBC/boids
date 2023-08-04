@@ -224,6 +224,10 @@ impl Flock {
     // TODO: separate this out for ease of testing
     // TODO: currently there are still boids that escape the frame, so this should be tested comprehensively
     // maybe_reflect_off_boundaries(x_pos, x_vel, y_pos, y_vel, frame_width, frame_height)
+
+
+    // the problem with this is that the vel is updated not the pos,
+    // so the change in velocity may not be sufficient to move the boid back into the frame
     fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
         // previous code assumed (0,0) was centre, but that's not the case.
         // note that 5 is used here as it is the diameter of the boid
@@ -466,5 +470,27 @@ mod tests {
         assert_eq!(CreationError::FactorShouldBeLessThanOne("adhesion".to_string()).to_string(), "adhesion factor is too large and should be below zero".to_string());
         assert_eq!(CreationError::FactorShouldBeMoreThanZero("repulsion".to_string()).to_string(), "repulsion factor is negative".to_string());
         assert_eq!(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment.to_string(), "local environment is smaller than (or equal to) crowding environment".to_string());
+    }
+    #[test]
+    fn test_boundary_reflected_when_velocity_is_zero(){
+        let mut flock = Flock::new(1, 2.0, 5.0, 0.5, 0.5, 0.5).unwrap();
+        // boid[0] is past the boundary
+        // but the velocity is such that reflecting the boid will not help
+        flock.boids[0].x_pos = -1.0;
+        flock.boids[0].y_pos = 0.0;
+        flock.boids[0].x_vel = 0.0;
+        flock.boids[0].y_vel = 0.0;
+        flock.maybe_reflect_off_boundaries(0);
+        assert!(flock.boids[0].x_pos > 0.0);
+    }
+    #[test]
+    fn test_boundary_reflected_when_boid_at_boundary(){
+        let mut flock = Flock::new(1, 2.0, 5.0, 0.5, 0.5, 0.5).unwrap();
+        flock.boids[0].x_pos = flock.frame_width.clone();
+        flock.boids[0].y_pos = 0.0;
+        flock.boids[0].x_vel = flock.boid_max_speed;
+        flock.boids[0].y_vel = 0.0;
+        flock.maybe_reflect_off_boundaries(0);
+        assert!(flock.boids[0].x_pos > 0.0);
     }
 }
