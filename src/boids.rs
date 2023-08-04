@@ -16,6 +16,7 @@ pub(crate) struct Flock {
     adhesion_factor: f32, // how much a boid wants to stay with the flock
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
     time_per_frame: i32,
+    boid_max_speed: f32,
     pub(crate) frame_width: f32,
     pub(crate) frame_height: f32,
 }
@@ -71,6 +72,7 @@ impl Flock {
             adhesion_factor,
             cohesion_factor,
             time_per_frame: 1,
+            boid_max_speed: 8.0,
             frame_width: 800.0,
             frame_height: 500.0,
         };
@@ -109,14 +111,15 @@ impl Flock {
     pub(crate) fn randomly_generate_boids(&mut self) {
         let mut rng = thread_rng();
         let mut boids = Vec::new();
-        let mid_frame_x = self.frame_width as f32 / 2.0;
-        let mid_frame_y = self.frame_height as f32 / 2.0;
-        let max_starting_dist_from_mid_x = self.frame_width as f32 / 10.0;
-        let max_starting_dist_from_mid_y = self.frame_height as f32 / 10.0;
+        let frame_width = self.frame_width.clone();
+        let mid_frame_x = &frame_width / 2.0;
+        let mid_frame_y = &frame_width / 2.0;
+        let max_starting_dist_from_mid_x = &frame_width / 10.0;
+        let max_starting_dist_from_mid_y = &frame_width / 10.0;
         for _ in 0..self.flock_size {
-            boids.push(Boid::new(mid_frame_x + rng.gen_range(-max_starting_dist_from_mid_x..max_starting_dist_from_mid_x),
-                                 mid_frame_y + rng.gen_range(-max_starting_dist_from_mid_y..max_starting_dist_from_mid_y),
-                                 rng.gen_range(-5.0..5.0), rng.gen_range(-5.0..5.0)));
+            boids.push(Boid::new(&mid_frame_x + rng.gen_range(-&max_starting_dist_from_mid_x..max_starting_dist_from_mid_x),
+                                 &mid_frame_y + rng.gen_range(-&max_starting_dist_from_mid_y..max_starting_dist_from_mid_y),
+                                  rng.gen_range(-self.boid_max_speed.clone()..self.boid_max_speed.clone()), rng.gen_range(-self.boid_max_speed.clone()..self.boid_max_speed.clone())));
         }
 
         self.boids = boids;
@@ -213,15 +216,46 @@ impl Flock {
             }
         }
 
+        self.limit_speed(boid_to_update);
         self.maybe_reflect_off_boundaries(boid_to_update);
+
     }
 
+    // TODO: separate this out for ease of testing
+    // TODO: currently there are still boids that escape the frame, so this should be tested comprehensively
+    // maybe_reflect_off_boundaries(x_pos, x_vel, y_pos, y_vel, frame_width, frame_height)
     fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
-        if self.boids[boid_to_update].x_pos.abs() >= (self.frame_width - 1.0)/2.0 {
-            self.boids[boid_to_update].x_vel = -self.boids[boid_to_update].x_vel;
+        // previous code assumed (0,0) was centre, but that's not the case.
+        // note that 5 is used here as it is the diameter of the boid
+        // which really should be a constant somewhere
+        if self.boids[boid_to_update.clone()].x_pos >= (self.frame_width.clone() - 5.0) ||
+            self.boids[boid_to_update.clone()].x_pos <= 5.0 {
+            self.boids[boid_to_update.clone()].x_vel = -self.boids[boid_to_update.clone()].x_vel.clone();
         }
-        if self.boids[boid_to_update].y_pos.abs() >= (self.frame_height - 1.0)/2.0 {
-            self.boids[boid_to_update].y_vel = -self.boids[boid_to_update].y_vel;
+        if self.boids[boid_to_update].y_pos >= (self.frame_height.clone() - 5.0) ||
+            self.boids[boid_to_update.clone()].y_pos <= 5.0 {
+            self.boids[boid_to_update.clone()].y_vel = -self.boids[boid_to_update.clone()].y_vel.clone();
+        }
+        self.boids[boid_to_update.clone()] = Boid {
+            x_vel: self.boids[boid_to_update.clone()].x_vel,
+            y_vel: self.boids[boid_to_update.clone()].y_vel,
+            x_pos: self.boids[boid_to_update.clone()].x_pos + (self.boids[boid_to_update.clone()].x_vel * self.time_per_frame as f32),
+            y_pos: self.boids[boid_to_update.clone()].y_pos + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32),
+        }
+    }
+    // todo: this is not really correct as doing this at the end allows instantaneous speed to be higher than max
+    // so every time the velocity is updated, should be done as a max_absolute_value_of(new_velocity, max_speed)
+    fn limit_speed(&mut self, boid_to_update: usize){
+        let speed = (self.boids[boid_to_update.clone()].x_vel.powi(2) + self.boids[boid_to_update.clone()].y_vel.powi(2)).sqrt();
+        if speed > self.boid_max_speed {
+            self.boids[boid_to_update.clone()].x_vel = (self.boids[boid_to_update.clone()].x_vel / speed) * self.boid_max_speed;
+            self.boids[boid_to_update.clone()].y_vel = (self.boids[boid_to_update.clone()].y_vel / speed) * self.boid_max_speed;
+        }
+        self.boids[boid_to_update.clone()] = Boid {
+            x_vel: self.boids[boid_to_update.clone()].x_vel,
+            y_vel: self.boids[boid_to_update.clone()].y_vel,
+            x_pos: self.boids[boid_to_update.clone()].x_pos + (self.boids[boid_to_update.clone()].x_vel * self.time_per_frame as f32),
+            y_pos: self.boids[boid_to_update.clone()].y_pos + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32),
         }
     }
 }
