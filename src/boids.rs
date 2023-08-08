@@ -230,5 +230,5 @@ mod tests {
             other_boid.y_vel + repulsion_factor * (other_boid.y_pos - updated_boid.x_pos)
         );
     }
-    
+
 }

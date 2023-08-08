@@ -127,6 +127,9 @@ impl Flock {
         Ok(flock)
     }
 
+    
+    // todo: move to new file for input parsing and validation
+    // as should the validations above
     fn validate(&self) -> Result<(), InvalidFlockConfig> {
         let mut errors = validate_factors(
             self.repulsion_factor,
@@ -184,6 +187,7 @@ impl Flock {
     }
 
     
+    // todo: move to Boid::.
     fn cohere_boid(
         &mut self,
         boid_to_update: usize,
@@ -243,7 +247,6 @@ impl Flock {
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
-        // TODO all of these should be methods of boids not of the flock
         if num_crowding_boids > 0 {
             self.boids[boid_to_update] = Boid::uncrowd_boid(
                 self.boids[boid_to_update],
@@ -263,6 +266,7 @@ impl Flock {
                 self.adhesion_factor,
                 self.time_per_frame,
             );
+            // todo: move to Boid::.
             Flock::cohere_boid(
                 self,
                 boid_to_update,
@@ -296,6 +300,7 @@ impl Flock {
 
     // todo: this is not really correct as doing this at the end allows instantaneous speed to be higher than max
     // so every time the velocity is updated, should be done as a max_absolute_value_of(new_velocity, max_speed)
+    // well ... really the position shouldn't be continually updated, just the speed, which is then capped and the dist then calculated/
     fn limit_speed(&mut self, boid_to_update: usize) {
         let speed = (self.boids[boid_to_update.clone()].x_vel.powi(2)
             + self.boids[boid_to_update.clone()].y_vel.powi(2))
