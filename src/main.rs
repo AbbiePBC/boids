@@ -1,6 +1,7 @@
 mod boids;
+mod flock;
+use flock::Flock;
 
-use crate::boids::{Boid, Flock};
 use macroquad::prelude::*;
 
 #[macroquad::main("Boids")]
