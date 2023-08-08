@@ -6,7 +6,6 @@ use macroquad::prelude::*;
 
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
-
     let flock_size = 10;
     let mut flock = Flock::new(flock_size, 100.0, 200.0, 0.1, 0.9, 0.9)?;
     flock.frame_width = macroquad::window::screen_width();
@@ -21,10 +20,15 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 }
 
-fn draw_updated_boids(flock: &mut Flock){
+fn draw_updated_boids(flock: &mut Flock) {
     let colours = [RED, BLUE, GREEN, YELLOW];
     for i in 0..flock.flock_size {
         flock.update_boid(i);
-        draw_circle(flock.boids[i.clone()].x_pos.clone(), flock.boids[i.clone()].y_pos.clone(), 2.5, colours[(i.clone() % colours.len())]);
+        draw_circle(
+            flock.boids[i.clone()].x_pos.clone(),
+            flock.boids[i.clone()].y_pos.clone(),
+            2.5,
+            colours[(i.clone() % colours.len())],
+        );
     }
 }
