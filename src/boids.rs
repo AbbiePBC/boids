@@ -18,7 +18,7 @@ pub(crate) struct Flock {
     repulsion_factor: f32, // how much a boid wants to move away from other boids
     adhesion_factor: f32, // how much a boid wants to stay with the flock
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
-    time_per_frame: i32,
+    time_per_frame: f32,
     boid_max_speed: f32,
     pub(crate) frame_width: f32,
     pub(crate) frame_height: f32,
@@ -74,7 +74,7 @@ impl Flock {
             repulsion_factor,
             adhesion_factor,
             cohesion_factor,
-            time_per_frame: 1,
+            time_per_frame: 1.0,
             boid_max_speed: 8.0,
             frame_width: 800.0,
             frame_height: 500.0,
@@ -144,19 +144,6 @@ impl Flock {
             y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
         }
     }
-    fn align_boid(&mut self, boid_to_update: usize,
-                  num_local_boids: i32, total_x_vel_of_local_boids: f32,
-                  total_y_vel_of_local_boids: f32) {
-        let average_x_vel: f32 = total_x_vel_of_local_boids as f32 / num_local_boids as f32;
-        let average_y_vel: f32 = total_y_vel_of_local_boids as f32 / num_local_boids as f32;
-        // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
-        self.boids[boid_to_update] = Boid {
-            x_vel: self.boids[boid_to_update].x_vel + ((average_x_vel - self.boids[boid_to_update].x_vel) * self.adhesion_factor),
-            y_vel: self.boids[boid_to_update].y_vel + ((average_y_vel - self.boids[boid_to_update].y_vel) * self.adhesion_factor),
-            x_pos: self.boids[boid_to_update].x_pos + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
-            y_pos: self.boids[boid_to_update].y_pos + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
-        }
-    }
     fn cohere_boid(&mut self, boid_to_update: usize,
                    num_local_boids: i32, total_x_dist_of_local_boids: f32,
                    total_y_dist_of_local_boids: f32){
@@ -205,7 +192,7 @@ impl Flock {
             Flock::uncrowd_boid(self, boid_to_update, num_crowding_boids, total_x_dist_of_crowding_boids, total_y_dist_of_crowding_boids);
         }
         if num_local_boids > 0 {
-            Flock::align_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_vel, total_of_local_boids.y_vel);
+            self.boids[boid_to_update] = Boid::align_boid(&self.boids[boid_to_update].clone(), num_local_boids, total_of_local_boids.x_vel, total_of_local_boids.y_vel, self.adhesion_factor, self.time_per_frame);
             Flock::cohere_boid(self, boid_to_update, num_local_boids, total_of_local_boids.x_pos, total_of_local_boids.y_pos);
         }
         // todo: test the following
@@ -307,6 +294,23 @@ impl Boid {
         return (self.x_pos - other_boid.x_pos).abs() < max_dist_of_local_boid &&
             (self.y_pos - other_boid.y_pos).abs() < max_dist_of_local_boid;
     }
+
+    fn align_boid(&self,
+        num_local_boids: i32, total_x_vel_of_local_boids: f32,
+        total_y_vel_of_local_boids: f32, 
+        adhesion_factor: f32,
+        time_per_frame: f32 ) -> Boid {
+        let average_x_vel: f32 = total_x_vel_of_local_boids as f32 / num_local_boids as f32;
+        let average_y_vel: f32 = total_y_vel_of_local_boids as f32 / num_local_boids as f32;
+        // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
+        return Boid {
+            x_vel: self.x_vel + ((average_x_vel - self.x_vel) * adhesion_factor),
+            y_vel: self.y_vel + ((average_y_vel - self.y_vel) * adhesion_factor),
+            x_pos: self.x_pos + (self.x_vel * time_per_frame as f32),
+            y_pos: self.y_pos + (self.y_vel * time_per_frame as f32),
+        }
+    }
+
 
 }
 
@@ -418,41 +422,44 @@ mod tests {
 
     #[test]
     fn test_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 1.0, 0.0).unwrap();
+        let adhesion_factor = 1.0;
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, adhesion_factor, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
         flock.boids = vec![boid, boid_2, boid_3];
 
-        flock.align_boid(0, 2, 20.0, 0.0);
-        assert_eq!(flock.boids[0].x_vel, 10.0);
-        assert_eq!(flock.boids[0].y_vel, 0.0);
+        let updated_boid = Boid::align_boid(&boid, 2, 20.0, 0.0, adhesion_factor, 1.0);
+        assert_eq!(updated_boid.x_vel, 10.0);
+        assert_eq!(updated_boid.y_vel, 0.0);
     }
 
     #[test]
     fn test_no_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.0, 0.0).unwrap();
+        let adhesion_factor = 0.0;
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, adhesion_factor, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
         flock.boids = vec![boid, boid_2, boid_3];
 
-        flock.align_boid(0, 2, 20.0, 0.0);
-        assert_eq!(flock.boids[0].x_vel, 1.0);
-        assert_eq!(flock.boids[0].y_vel, 5.0);
+        let updated_boid = Boid::align_boid(&flock.boids[0], 2, 20.0, 0.0, adhesion_factor, 1.0);
+        assert_eq!(updated_boid.x_vel, 1.0);
+        assert_eq!(updated_boid.y_vel, 5.0);
     }
 
     #[test]
     fn test_half_adhesion() {
-        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, 0.5, 0.0).unwrap();
+        let adhesion_factor = 0.5;
+        let mut flock = Flock::new(0, 1.0, 50.0, 0.0, adhesion_factor, 0.0).unwrap();
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
         let boid_2 = Boid::new(3.0, 3.0, 10.0, 1000.0);
         let boid_3 = Boid::new(5.0, 5.0, 10.0, -1000.0);
         flock.boids = vec![boid, boid_2, boid_3];
 
-        flock.align_boid(0, 2, 20.0, 0.0);
-        assert_eq!(flock.boids[0].x_vel, 5.5);
-        assert_eq!(flock.boids[0].y_vel, 2.5);
+        let updated_boid = Boid::align_boid(&flock.boids[0], 2, 20.0, 0.0, adhesion_factor, 1.0);
+        assert_eq!(updated_boid.x_vel, 5.5);
+        assert_eq!(updated_boid.y_vel, 2.5);
     }
     #[test]
     fn test_incorrect_factor_inputs() {
