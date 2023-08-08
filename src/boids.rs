@@ -97,6 +97,35 @@ impl Boid {
             y_pos: self.y_pos + (self.y_vel * time_per_frame as f32),
         };
     }
+
+    pub(crate) fn uncrowd_boid(
+        boid_to_update: Boid,
+        num_crowding_boids: i32,
+        total_x_dist_of_crowding_boids: f32,
+        total_y_dist_of_crowding_boids: f32,
+        repulsion_factor: f32,
+        time_per_frame: f32
+    ) -> Boid {
+        // move away from the average position of the crowding boids
+        let dist_to_ave_x_pos_of_crowding_boids: f32 = boid_to_update.x_pos
+            - (total_x_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
+        let dist_to_ave_y_pos_of_crowding_boids: f32 = boid_to_update.y_pos
+            - (total_y_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
+
+        // update velocity to move away from the average boid position within the crowding flock
+        Boid {
+            x_vel: boid_to_update.x_vel
+                + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor),
+            y_vel: boid_to_update.y_vel
+                + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor),
+            x_pos: boid_to_update.x_pos
+                + (boid_to_update.x_vel * time_per_frame as f32),
+            y_pos: boid_to_update.y_pos
+                + (boid_to_update.y_vel * time_per_frame as f32),
+        }
+    }
+
+
 }
 
 impl AddAssign for Boid {
@@ -172,4 +201,34 @@ mod tests {
             maybe_reflect_off_boundaries(boid_to_update, max_x_position, max_y_position, 1.0);
         assert!(updated_boid.x_pos > 0.0);
     }
+
+    
+    #[test]
+    fn test_crowded_boid_has_updated_velocity() {
+        let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
+        let other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
+        
+        let mut repulsion_factor = 0.0;
+        let updated_boid = Boid::uncrowd_boid(boid, 1, other_boid.x_pos, other_boid.y_pos, repulsion_factor, 1.0);
+        
+        assert_eq!(updated_boid.x_vel, boid.x_vel);
+        assert_eq!(updated_boid.y_vel, boid.y_vel);
+        // v = d/t; t = 1
+        assert_eq!(updated_boid.x_pos, boid.x_pos + boid.x_vel); // = 2
+        assert_eq!(updated_boid.y_pos, boid.y_pos + boid.y_vel); // = 2
+
+        repulsion_factor = 1.0;
+        let updated_other_boid = Boid::uncrowd_boid(other_boid, 1, updated_boid.x_pos, updated_boid.y_pos, repulsion_factor, 1.0);
+        // new velocity = original velocity + repulsion*(difference in displacement)*time
+
+        assert_eq!(
+            updated_other_boid.x_vel,
+            other_boid.x_vel + repulsion_factor * (other_boid.x_pos - updated_boid.x_pos)
+        );
+        assert_eq!(
+            updated_other_boid.y_vel,
+            other_boid.y_vel + repulsion_factor * (other_boid.y_pos - updated_boid.x_pos)
+        );
+    }
+    
 }

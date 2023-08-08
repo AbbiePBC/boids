@@ -1,8 +1,7 @@
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use macroquad::prelude::*;
 use std::error;
 use std::fmt;
-use std::ops::AddAssign;
 extern crate rand;
 use crate::boids::maybe_reflect_off_boundaries;
 use crate::boids::Boid;
@@ -184,31 +183,7 @@ impl Flock {
         self.boids = boids;
     }
 
-    fn uncrowd_boid(
-        &mut self,
-        boid_to_update: usize,
-        num_crowding_boids: i32,
-        total_x_dist_of_crowding_boids: f32,
-        total_y_dist_of_crowding_boids: f32,
-    ) {
-        // move away from the average position of the crowding boids
-        let dist_to_ave_x_pos_of_crowding_boids: f32 = self.boids[boid_to_update].x_pos
-            - (total_x_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
-        let dist_to_ave_y_pos_of_crowding_boids: f32 = self.boids[boid_to_update].y_pos
-            - (total_y_dist_of_crowding_boids as f32 / num_crowding_boids as f32);
-
-        // update velocity to move away from the average boid position within the crowding flock
-        self.boids[boid_to_update] = Boid {
-            x_vel: self.boids[boid_to_update].x_vel
-                + (dist_to_ave_x_pos_of_crowding_boids * self.repulsion_factor),
-            y_vel: self.boids[boid_to_update].y_vel
-                + (dist_to_ave_y_pos_of_crowding_boids * self.repulsion_factor),
-            x_pos: self.boids[boid_to_update].x_pos
-                + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
-            y_pos: self.boids[boid_to_update].y_pos
-                + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
-        }
-    }
+    
     fn cohere_boid(
         &mut self,
         boid_to_update: usize,
@@ -270,12 +245,13 @@ impl Flock {
 
         // TODO all of these should be methods of boids not of the flock
         if num_crowding_boids > 0 {
-            Flock::uncrowd_boid(
-                self,
-                boid_to_update,
+            self.boids[boid_to_update] = Boid::uncrowd_boid(
+                self.boids[boid_to_update],
                 num_crowding_boids,
                 total_x_dist_of_crowding_boids,
                 total_y_dist_of_crowding_boids,
+                self.repulsion_factor,
+                self.time_per_frame
             );
         }
         if num_local_boids > 0 {
@@ -344,7 +320,6 @@ impl Flock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Context;
     #[test]
     fn test_no_crowding_by_boid_outside_of_crowding_zone() {
         let mut flock = Flock::new(0, 4.0, 5.0, 0.0, 0.0, 0.0).unwrap();
@@ -377,34 +352,6 @@ mod tests {
             &flock.boids[0],
             flock.max_dist_before_boid_is_no_longer_crowded
         ));
-    }
-
-    #[test]
-    fn test_crowded_boid_has_updated_velocity() {
-        let mut flock = Flock::new(0, 40.0, 500.0, 0.0, 0.0, 0.0).unwrap();
-        let boid = Boid::new(1.0, 1.0, 1.0, 1.0);
-        let other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
-        flock.boids = vec![boid, other_boid];
-
-        flock.uncrowd_boid(0, 1, 10.0, 10.0);
-        assert_eq!(flock.boids[0].x_vel, boid.x_vel);
-        assert_eq!(flock.boids[0].y_vel, boid.y_vel);
-        // v = d/t; t = 1
-        assert_eq!(flock.boids[0].x_pos, boid.x_pos + boid.x_vel); // = 2
-        assert_eq!(flock.boids[0].y_pos, boid.y_pos + boid.y_vel); // = 2
-
-        flock.repulsion_factor = 1.0;
-        flock.uncrowd_boid(1, 1, flock.boids[0].x_pos, flock.boids[0].x_pos);
-        // new velocity = original velocity + repulsion*(difference in displacement)*time
-
-        assert_eq!(
-            flock.boids[1].x_vel,
-            other_boid.x_vel + flock.repulsion_factor * (other_boid.x_pos - flock.boids[0].x_pos)
-        );
-        assert_eq!(
-            flock.boids[1].y_vel,
-            other_boid.y_vel + flock.repulsion_factor * (other_boid.y_pos - flock.boids[0].x_pos)
-        );
     }
 
     #[test]
