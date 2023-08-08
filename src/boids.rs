@@ -7,6 +7,9 @@ extern crate rand;
 use rand::{Rng, thread_rng};
 
 #[derive(Debug)]
+// todo: some of these inputs aren't about the flock so should be extracted
+// e.g. time per frame, frame dimensions
+// and almost all of the methods don't need flock info but boid only.
 pub(crate) struct Flock {
     pub(crate) flock_size: usize,
     pub(crate) boids: Vec<Boid>,
@@ -197,6 +200,7 @@ impl Flock {
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
+        // TODO all of these should be methods of boids not of the flock
         if num_crowding_boids > 0 {
             Flock::uncrowd_boid(self, boid_to_update, num_crowding_boids, total_x_dist_of_crowding_boids, total_y_dist_of_crowding_boids);
         }
@@ -225,9 +229,6 @@ impl Flock {
     // TODO: currently there are still boids that escape the frame, so this should be tested comprehensively
     // maybe_reflect_off_boundaries(x_pos, x_vel, y_pos, y_vel, frame_width, frame_height)
 
-
-    // the problem with this is that the vel is updated not the pos,
-    // so the change in velocity may not be sufficient to move the boid back into the frame
     fn maybe_reflect_off_boundaries(&mut self, boid_to_update: usize) {
         // previous code assumed (0,0) was centre, but that's not the case.
         // note that 5 is used here as it is the diameter of the boid
@@ -240,11 +241,14 @@ impl Flock {
             self.boids[boid_to_update.clone()].y_pos <= 5.0 {
             self.boids[boid_to_update.clone()].y_vel = -self.boids[boid_to_update.clone()].y_vel.clone();
         }
+        let new_x_pos: f32 = self.boids[boid_to_update.clone()].x_pos + (self.boids[boid_to_update.clone()].x_vel * self.time_per_frame as f32);
+        let new_y_pos: f32 = self.boids[boid_to_update.clone()].y_pos + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32);
+
         self.boids[boid_to_update.clone()] = Boid {
             x_vel: self.boids[boid_to_update.clone()].x_vel,
             y_vel: self.boids[boid_to_update.clone()].y_vel,
-            x_pos: self.boids[boid_to_update.clone()].x_pos + (self.boids[boid_to_update.clone()].x_vel * self.time_per_frame as f32),
-            y_pos: self.boids[boid_to_update.clone()].y_pos + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32),
+            x_pos: clamp_position_to_stay_in_frame(new_x_pos, self.frame_width),
+            y_pos: clamp_position_to_stay_in_frame(new_y_pos, self.frame_height),
         }
     }
     // todo: this is not really correct as doing this at the end allows instantaneous speed to be higher than max
@@ -262,6 +266,18 @@ impl Flock {
             y_pos: self.boids[boid_to_update.clone()].y_pos + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32),
         }
     }
+}
+
+fn clamp_position_to_stay_in_frame(co_ord: f32, max_in_direction: f32) -> f32 {
+    let mut current_distance_in_direction = co_ord;
+    if current_distance_in_direction < 0.0 {
+        current_distance_in_direction = 0.1;
+    }
+    else if current_distance_in_direction > max_in_direction {
+        current_distance_in_direction = max_in_direction - 0.1;
+    }
+    current_distance_in_direction
+
 }
 
 #[derive(Copy, Clone, Debug)]
