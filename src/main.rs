@@ -10,8 +10,8 @@ const TIME_PER_FRAME: f32 = 1.0;
 
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
-    let flock_size = 10;
-    let mut flock = Flock::new(flock_size, 100.0, 200.0, 0.1, 0.9, 0.9)?;
+    let flock_size = 200;
+    let mut flock = Flock::new(flock_size, 300.0, 400.0, 0.3, 0.3, 0.3)?;
     let frame_dimensions = FrameDimensions {
         frame_width: macroquad::window::screen_width(),
         frame_height: macroquad::window::screen_height(),

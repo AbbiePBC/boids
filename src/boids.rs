@@ -14,9 +14,17 @@ fn clamp_position_to_stay_in_frame(co_ord: f32, max_in_direction: &f32) -> f32 {
     current_distance_in_direction
 }
 
-// TODO: separate this out for ease of testing
-// TODO: currently there are still boids that escape the frame, so this should be tested comprehensively
-// maybe_reflect_off_boundaries(x_pos, x_vel, y_pos, y_vel, frame_width, frame_height)
+pub(crate) fn limit_speed(x_vel: f32, y_vel: f32, max_boid_speed: f32) -> (f32, f32) {
+    let speed = (x_vel.powi(2) + y_vel.powi(2)).sqrt();
+    if speed < max_boid_speed {
+        return (x_vel, y_vel);
+    }
+    let new_x_speed = x_vel / speed.clone() * speed.clone();
+    let new_y_speed = y_vel / speed.clone() * speed.clone();
+    return (new_x_speed, new_y_speed);
+
+}
+
 
 pub(crate) fn maybe_reflect_off_boundaries(
     boid_to_update: &Boid,
@@ -135,6 +143,7 @@ impl Boid {
             (total_y_dist_of_local_boids / num_local_boids.clone() as f32) - &self.y_pos;
 
         // update the boid's position to move towards the average position of the local flock, by some cohesion factor
+
         Boid {
             x_vel: &self.x_vel
                 + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
@@ -142,6 +151,17 @@ impl Boid {
                 + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
             x_pos: &self.x_pos + (&self.x_vel * TIME_PER_FRAME),
             y_pos: &self.y_pos + (&self.y_vel * TIME_PER_FRAME),
+        }
+    }
+
+    pub(crate) fn move_boid(&self) -> Boid {
+        // d=tv
+        let new_x_pos = self.x_pos.clone() + (self.x_vel.clone() * TIME_PER_FRAME);
+        let new_y_pos = self.y_pos.clone() + (self.y_vel.clone() * TIME_PER_FRAME);
+        return Boid{
+            x_pos: new_x_pos,
+            y_pos: new_y_pos,
+            ..self.clone()
         }
     }
 

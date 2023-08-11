@@ -1,7 +1,6 @@
 use macroquad::prelude::*;
 extern crate rand;
-use crate::boids::maybe_reflect_off_boundaries;
-use crate::boids::Boid;
+use crate::boids::{Boid, limit_speed, maybe_reflect_off_boundaries};
 use crate::validate::{validate_distances, validate_factors, InvalidFlockConfig};
 use crate::TIME_PER_FRAME;
 use rand::{thread_rng, Rng};
@@ -109,6 +108,9 @@ impl Flock {
         self.boids = boids;
     }
 
+    // todo: on reflection, this should probably be
+    // Boids::update_boids(&self, boid_idx, flock, dimensions: &FrameDimensions)
+    // -> Boid()
     pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) {
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
@@ -139,6 +141,9 @@ impl Flock {
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
+        // todo: these functions should affect the boid velocity and not position,
+        // and then the boid position should be updated later
+        // once the boid velocity is capped at the maximum
         if num_crowding_boids > 0 {
             self.boids[boid_to_update] = Boid::uncrowd_boid(
                 &self.boids[boid_to_update.clone()].clone(),
@@ -164,40 +169,19 @@ impl Flock {
                 &self.cohesion_factor,
             );
         }
-        // todo: test the following
         if num_local_boids == 0 && num_crowding_boids == 0 {
             self.boids[boid_to_update.clone()].continue_moving_as_unaffected_by_other_boids();
         }
 
-        self.limit_speed(boid_to_update.clone());
+        self.boids[boid_to_update.clone()] = Boid::move_boid(&self.boids[boid_to_update.clone()]);
+        // todo: without the above function, the boids do not move
+        // in theory this is fine, bc we're updating vel not position as we go
+        // but check this is the case rather than a bug somewhere
         self.boids[boid_to_update.clone()] =
             maybe_reflect_off_boundaries(&self.boids[boid_to_update.clone()], &dimensions);
+
     }
 
-    // todo: this is not really correct as doing this at the end allows instantaneous speed to be higher than max
-    // so every time the velocity is updated, should be done as a max_absolute_value_of(new_velocity, max_speed)
-    // well ... really the position shouldn't be continually updated, just the speed, which is then capped and the dist then calculated/
-    fn limit_speed(&mut self, boid_to_update: usize) {
-        let speed = (self.boids[boid_to_update.clone()].x_vel.powi(2)
-            + self.boids[boid_to_update.clone()].y_vel.powi(2))
-        .sqrt();
-        if speed > self.boid_max_speed {
-            self.boids[boid_to_update.clone()].x_vel =
-                (self.boids[boid_to_update.clone()].clone().x_vel / speed.clone())
-                    * self.boid_max_speed.clone();
-            self.boids[boid_to_update.clone()].y_vel =
-                (self.boids[boid_to_update.clone()].clone().y_vel / speed.clone())
-                    * self.boid_max_speed.clone();
-        }
-        self.boids[boid_to_update.clone()] = Boid {
-            x_vel: self.boids[boid_to_update.clone()].clone().x_vel,
-            y_vel: self.boids[boid_to_update.clone()].clone().y_vel,
-            x_pos: self.boids[boid_to_update.clone()].clone().x_pos
-                + (self.boids[boid_to_update.clone()].clone().x_vel * TIME_PER_FRAME),
-            y_pos: self.boids[boid_to_update.clone()].clone().y_pos
-                + (self.boids[boid_to_update.clone()].clone().y_vel * TIME_PER_FRAME),
-        }
-    }
 }
 
 #[cfg(test)]
