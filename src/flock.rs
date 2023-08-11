@@ -186,37 +186,6 @@ impl Flock {
         self.boids = boids;
     }
 
-    
-    // todo: move to Boid::.
-    fn cohere_boid(
-        &mut self,
-        boid_to_update: usize,
-        num_local_boids: i32,
-        total_x_dist_of_local_boids: f32,
-        total_y_dist_of_local_boids: f32,
-    ) {
-        // move towards the ave position of the local flock, so this is the reverse of uncrowding
-        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids
-            / num_local_boids as f32)
-            - self.boids[boid_to_update].x_pos.clone();
-        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids
-            / num_local_boids.clone() as f32)
-            - self.boids[boid_to_update.clone()].clone().y_pos;
-
-        // update the boid's position to move towards the average position of the local flock, by some cohesion factor
-        self.boids[boid_to_update.clone()] = Boid {
-            x_vel: self.boids[boid_to_update.clone()].x_vel.clone()
-                + (dist_to_ave_x_pos_of_local_boids * self.cohesion_factor.clone())
-                    / TIME_PER_FRAME,
-            y_vel: self.boids[boid_to_update.clone()].y_vel.clone()
-                + (dist_to_ave_y_pos_of_local_boids * self.cohesion_factor.clone())
-                    / TIME_PER_FRAME,
-            x_pos: self.boids[boid_to_update.clone()].x_pos.clone()
-                + (self.boids[boid_to_update.clone()].x_vel.clone() * TIME_PER_FRAME),
-            y_pos: self.boids[boid_to_update.clone()].y_pos.clone()
-                + (self.boids[boid_to_update.clone()].y_vel.clone() * TIME_PER_FRAME),
-        }
-    }
     pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) {
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
@@ -264,27 +233,17 @@ impl Flock {
                 total_of_local_boids.y_vel,
                 &self.adhesion_factor,
             );
-            // todo: move to Boid::.
-            Flock::cohere_boid(
-                self,
-                boid_to_update.clone(),
+            self.boids[boid_to_update.clone()] = Boid::cohere_boid(
+                &self.boids[boid_to_update.clone()],
                 num_local_boids.clone(),
                 total_of_local_boids.x_pos,
                 total_of_local_boids.y_pos,
+                &self.cohesion_factor,
             );
         }
         // todo: test the following
         if num_local_boids == 0 && num_crowding_boids == 0 {
-            // boid is unaffected by other boids, continue moving in same direction
-            // maybe a random direction would be more realistic idk
-            self.boids[boid_to_update.clone()] = Boid {
-                x_vel: self.boids[boid_to_update.clone()].clone().x_vel,
-                y_vel: self.boids[boid_to_update.clone()].clone().y_vel,
-                x_pos: self.boids[boid_to_update.clone()].clone().x_pos
-                    + (self.boids[boid_to_update.clone()].clone().x_vel * TIME_PER_FRAME),
-                y_pos: self.boids[boid_to_update.clone()].clone().y_pos
-                    + (self.boids[boid_to_update.clone()].clone().y_vel * TIME_PER_FRAME),
-            }
+
         }
 
         self.limit_speed(boid_to_update.clone());

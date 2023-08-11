@@ -119,7 +119,45 @@ impl Boid {
         }
     }
 
+    pub(crate) fn cohere_boid(
+        &self,
+        num_local_boids: i32,
+        total_x_dist_of_local_boids: f32,
+        total_y_dist_of_local_boids: f32,
+        cohesion_factor: &f32,
+    ) -> Boid {
+        // move towards the ave position of the local flock, so this is the reverse of uncrowding
+        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids
+            / num_local_boids as f32)
+            - &self.x_pos;
+        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids
+            / num_local_boids.clone() as f32)
+            - &self.y_pos;
 
+        // update the boid's position to move towards the average position of the local flock, by some cohesion factor
+        Boid {
+            x_vel: &self.x_vel
+                + (dist_to_ave_x_pos_of_local_boids * cohesion_factor)
+                / TIME_PER_FRAME,
+            y_vel: &self.y_vel
+                + (dist_to_ave_y_pos_of_local_boids * cohesion_factor)
+                / TIME_PER_FRAME,
+            x_pos: &self.x_pos + (&self.x_vel * TIME_PER_FRAME),
+            y_pos: &self.y_pos + (&self.y_vel * TIME_PER_FRAME),
+        }
+    }
+
+    pub(crate) fn continue_moving_as_unaffected_by_other_boids(
+        self)  -> Boid {
+        // boid is unaffected by other boids, continue moving in same direction
+        // maybe a random direction would be more realistic idk
+         Boid {
+            x_vel: self.x_vel,
+            y_vel: self.y_vel,
+            x_pos: self.x_pos + (&self.x_vel * TIME_PER_FRAME),
+            y_pos: self.y_pos + (&self.y_vel * TIME_PER_FRAME),
+        }
+    }
 }
 
 impl AddAssign for Boid {
