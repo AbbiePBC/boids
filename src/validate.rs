@@ -1,7 +1,6 @@
-use std::fmt;
-use std::error;
 use anyhow::{anyhow, Error, Result};
-
+use std::error;
+use std::fmt;
 
 #[derive(PartialEq, Debug)]
 pub(crate) enum CreationError {
@@ -55,10 +54,10 @@ pub(crate) fn validate_factors(
 }
 
 pub(crate) fn validate_distances(
-    max_dist_before_boid_is_crowded: f32,
-    max_dist_of_local_boid: f32,
+    max_dist_before_boid_is_crowded: &f32,
+    max_dist_of_local_boid: &f32,
 ) -> Option<CreationError> {
-    if max_dist_before_boid_is_crowded >= max_dist_of_local_boid {
+    if *max_dist_before_boid_is_crowded >= *max_dist_of_local_boid {
         return Some(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment);
     }
     return None;
@@ -79,7 +78,6 @@ impl From<InvalidFlockConfig> for Error {
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_incorrect_factor_inputs() {
         let result = validate_factors(2.0, -4.9, 1.0);
@@ -91,7 +89,9 @@ mod tests {
     }
     #[test]
     fn test_incorrect_distance_inputs() {
-        let result = validate_distances(20.0, 2.0);
+        let short_dist: f32 = 2.0;
+        let long_dist: f32 = 20.0;
+        let result = validate_distances(&long_dist, &short_dist);
         assert_eq!(
             result,
             Some(CreationError::LocalEnvironmentIsSmallerThanCrowdingEnvironment)

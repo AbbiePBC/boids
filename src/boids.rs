@@ -1,8 +1,8 @@
+use crate::{FrameDimensions, TIME_PER_FRAME};
 use macroquad::prelude::*;
 use std::error;
 use std::fmt;
 use std::ops::AddAssign;
-use crate::{FrameDimensions, TIME_PER_FRAME};
 
 fn clamp_position_to_stay_in_frame(co_ord: f32, max_in_direction: &f32) -> f32 {
     let mut current_distance_in_direction = co_ord;
@@ -27,10 +27,10 @@ pub(crate) fn maybe_reflect_off_boundaries(
     let mut new_y_vel = 0.0;
 
     if boid_to_update.x_pos >= dimensions.frame_width || boid_to_update.x_pos <= 0.0 {
-        new_x_vel = &boid_to_update.x_vel *-1.0;
+        new_x_vel = &boid_to_update.x_vel * -1.0;
     }
     if boid_to_update.y_pos >= dimensions.frame_height || boid_to_update.y_pos <= 0.0 {
-        new_y_vel = &boid_to_update.y_vel *-1.0;
+        new_y_vel = &boid_to_update.y_vel * -1.0;
     }
     let new_x_pos: f32 = &boid_to_update.x_pos + (new_x_vel * TIME_PER_FRAME);
     let new_y_pos: f32 = &boid_to_update.y_pos + (new_y_vel * TIME_PER_FRAME);
@@ -86,14 +86,14 @@ impl Boid {
         total_y_vel_of_local_boids: f32,
         adhesion_factor: &f32,
     ) -> Boid {
-        let average_x_vel: f32 = total_x_vel_of_local_boids as f32 / num_local_boids.clone() as f32;
-        let average_y_vel: f32 = total_y_vel_of_local_boids as f32 / num_local_boids.clone() as f32;
+        let average_x_vel: f32 = total_x_vel_of_local_boids / num_local_boids.clone() as f32;
+        let average_y_vel: f32 = total_y_vel_of_local_boids / num_local_boids.clone() as f32;
         // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
         return Boid {
-            x_vel: self.x_vel.clone() + ((average_x_vel - self.x_vel.clone()) * adhesion_factor),
-            y_vel: self.y_vel.clone() + ((average_y_vel - self.y_vel.clone()) * adhesion_factor),
-            x_pos: self.x_pos.clone() + (self.x_vel.clone() * TIME_PER_FRAME),
-            y_pos: self.y_pos.clone() + (self.y_vel.clone() * TIME_PER_FRAME),
+            x_vel: &self.x_vel + ((average_x_vel - &self.x_vel) * adhesion_factor) / TIME_PER_FRAME,
+            y_vel: &self.y_vel + ((average_y_vel - &self.y_vel) * adhesion_factor) / TIME_PER_FRAME,
+            x_pos: &self.x_pos + (&self.x_vel * TIME_PER_FRAME),
+            y_pos: &self.y_pos + (&self.y_vel * TIME_PER_FRAME),
         };
     }
 
@@ -105,15 +105,17 @@ impl Boid {
         repulsion_factor: &f32,
     ) -> Boid {
         // move away from the average position of the crowding boids
-        let dist_to_ave_x_pos_of_crowding_boids: f32 = &self.x_pos
-            - (total_x_dist_of_crowding_boids / num_crowding_boids as f32);
+        let dist_to_ave_x_pos_of_crowding_boids: f32 =
+            &self.x_pos - (total_x_dist_of_crowding_boids / num_crowding_boids as f32);
         let dist_to_ave_y_pos_of_crowding_boids: f32 = &self.y_pos
             - (total_y_dist_of_crowding_boids as f32 / num_crowding_boids.clone() as f32);
 
         // update velocity to move away from the average boid position within the crowding flock
         Boid {
-            x_vel: &self.x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor),
-            y_vel: &self.y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor),
+            x_vel: &self.x_vel
+                + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
+            y_vel: &self.y_vel
+                + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
             x_pos: &self.x_pos + (&self.x_vel * TIME_PER_FRAME),
             y_pos: &self.y_pos + (&self.y_vel * TIME_PER_FRAME),
         }
@@ -127,31 +129,26 @@ impl Boid {
         cohesion_factor: &f32,
     ) -> Boid {
         // move towards the ave position of the local flock, so this is the reverse of uncrowding
-        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids
-            / num_local_boids as f32)
-            - &self.x_pos;
-        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids
-            / num_local_boids.clone() as f32)
-            - &self.y_pos;
+        let dist_to_ave_x_pos_of_local_boids: f32 =
+            (total_x_dist_of_local_boids / num_local_boids as f32) - &self.x_pos;
+        let dist_to_ave_y_pos_of_local_boids: f32 =
+            (total_y_dist_of_local_boids / num_local_boids.clone() as f32) - &self.y_pos;
 
         // update the boid's position to move towards the average position of the local flock, by some cohesion factor
         Boid {
             x_vel: &self.x_vel
-                + (dist_to_ave_x_pos_of_local_boids * cohesion_factor)
-                / TIME_PER_FRAME,
+                + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
             y_vel: &self.y_vel
-                + (dist_to_ave_y_pos_of_local_boids * cohesion_factor)
-                / TIME_PER_FRAME,
+                + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
             x_pos: &self.x_pos + (&self.x_vel * TIME_PER_FRAME),
             y_pos: &self.y_pos + (&self.y_vel * TIME_PER_FRAME),
         }
     }
 
-    pub(crate) fn continue_moving_as_unaffected_by_other_boids(
-        self)  -> Boid {
+    pub(crate) fn continue_moving_as_unaffected_by_other_boids(self) -> Boid {
         // boid is unaffected by other boids, continue moving in same direction
         // maybe a random direction would be more realistic idk
-         Boid {
+        Boid {
             x_vel: self.x_vel,
             y_vel: self.y_vel,
             x_pos: self.x_pos + (&self.x_vel * TIME_PER_FRAME),
@@ -213,14 +210,19 @@ mod tests {
             x_vel: 0.0,
             y_vel: 0.0,
         };
-        let dimensions = FrameDimensions {frame_width: 1000.0, frame_height: 1000.0};
-        let updated_boid =
-            maybe_reflect_off_boundaries(&boid_to_update, &dimensions);
+        let dimensions = FrameDimensions {
+            frame_width: 1000.0,
+            frame_height: 1000.0,
+        };
+        let updated_boid = maybe_reflect_off_boundaries(&boid_to_update, &dimensions);
         assert!(updated_boid.x_pos > 0.0);
     }
     #[test]
     fn test_boundary_reflected_when_boid_at_boundary() {
-        let dimensions = FrameDimensions {frame_width: 1000.0, frame_height: 1000.0};
+        let dimensions = FrameDimensions {
+            frame_width: 1000.0,
+            frame_height: 1000.0,
+        };
 
         let boid_to_update = Boid {
             x_pos: dimensions.frame_width,
@@ -228,20 +230,24 @@ mod tests {
             x_vel: 100000.0,
             y_vel: 0.0,
         };
-        let updated_boid =
-            maybe_reflect_off_boundaries(&boid_to_update,  &dimensions);
+        let updated_boid = maybe_reflect_off_boundaries(&boid_to_update, &dimensions);
         assert!(updated_boid.x_pos > 0.0);
     }
 
-    
     #[test]
     fn test_crowded_boid_has_updated_velocity() {
         let mut boid = Boid::new(1.0, 1.0, 1.0, 1.0);
         let mut other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
-        
+
         let mut repulsion_factor = 0.0;
-        let updated_boid = Boid::uncrowd_boid(&mut boid, 1, other_boid.x_pos, other_boid.y_pos, &repulsion_factor);
-        
+        let updated_boid = Boid::uncrowd_boid(
+            &mut boid,
+            1,
+            other_boid.x_pos,
+            other_boid.y_pos,
+            &repulsion_factor,
+        );
+
         assert_eq!(updated_boid.x_vel, boid.x_vel);
         assert_eq!(updated_boid.y_vel, boid.y_vel);
         // v = d/t; t = 1
@@ -249,17 +255,22 @@ mod tests {
         assert_eq!(updated_boid.y_pos, boid.y_pos + boid.y_vel); // = 2
 
         repulsion_factor = 1.0;
-        let updated_other_boid = Boid::uncrowd_boid(&mut other_boid, 1, updated_boid.x_pos, updated_boid.y_pos, &repulsion_factor);
+        let updated_other_boid = Boid::uncrowd_boid(
+            &mut other_boid,
+            1,
+            updated_boid.x_pos,
+            updated_boid.y_pos,
+            &repulsion_factor,
+        );
         // new velocity = original velocity + repulsion*(difference in displacement)*time
 
         assert_eq!(
             updated_other_boid.x_vel,
-            other_boid.x_vel + repulsion_factor.clone() * (other_boid.x_pos.clone() - updated_boid.x_pos.clone())
+            other_boid.x_vel + &repulsion_factor * (&other_boid.x_pos - &updated_boid.x_pos)
         );
         assert_eq!(
             updated_other_boid.y_vel,
-            other_boid.y_vel + repulsion_factor.clone() * (other_boid.y_pos.clone() - updated_boid.x_pos.clone())
+            other_boid.y_vel + &repulsion_factor * (&other_boid.y_pos - &updated_boid.x_pos)
         );
     }
-
 }

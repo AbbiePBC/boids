@@ -2,9 +2,9 @@ use macroquad::prelude::*;
 extern crate rand;
 use crate::boids::maybe_reflect_off_boundaries;
 use crate::boids::Boid;
-use rand::{Rng, thread_rng};
+use crate::validate::{validate_distances, validate_factors, InvalidFlockConfig};
 use crate::TIME_PER_FRAME;
-use crate::validate::{InvalidFlockConfig, validate_distances, validate_factors};
+use rand::{thread_rng, Rng};
 
 #[derive(Debug)]
 /// A struct that represents the dimensions of the frame in which the boids are moving.
@@ -13,7 +13,6 @@ pub(crate) struct FrameDimensions {
     pub(crate) frame_width: f32,
     pub(crate) frame_height: f32,
 }
-
 
 #[derive(Debug)]
 pub(crate) struct Flock {
@@ -26,7 +25,6 @@ pub(crate) struct Flock {
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
     boid_max_speed: f32,
 }
-
 
 impl Flock {
     /// the pattern of Flock{}, flock.validate()?, flock.init() is used to avoid
@@ -55,7 +53,6 @@ impl Flock {
         Ok(flock)
     }
 
-
     fn validate(&self) -> Result<(), InvalidFlockConfig> {
         let mut errors = validate_factors(
             self.repulsion_factor.clone(),
@@ -64,8 +61,8 @@ impl Flock {
         );
 
         if let Some(creation_error) = validate_distances(
-            self.max_dist_before_boid_is_no_longer_crowded.clone(),
-            self.max_dist_of_local_boid.clone(),
+            &self.max_dist_before_boid_is_no_longer_crowded,
+            &self.max_dist_of_local_boid,
         ) {
             errors.push(creation_error);
         }
@@ -169,14 +166,12 @@ impl Flock {
         }
         // todo: test the following
         if num_local_boids == 0 && num_crowding_boids == 0 {
-
+            self.boids[boid_to_update.clone()].continue_moving_as_unaffected_by_other_boids();
         }
 
         self.limit_speed(boid_to_update.clone());
-        self.boids[boid_to_update.clone()] = maybe_reflect_off_boundaries(
-            &self.boids[boid_to_update.clone()],
-            &dimensions
-        );
+        self.boids[boid_to_update.clone()] =
+            maybe_reflect_off_boundaries(&self.boids[boid_to_update.clone()], &dimensions);
     }
 
     // todo: this is not really correct as doing this at the end allows instantaneous speed to be higher than max
@@ -188,9 +183,11 @@ impl Flock {
         .sqrt();
         if speed > self.boid_max_speed {
             self.boids[boid_to_update.clone()].x_vel =
-                (self.boids[boid_to_update.clone()].clone().x_vel / speed.clone()) * self.boid_max_speed.clone();
+                (self.boids[boid_to_update.clone()].clone().x_vel / speed.clone())
+                    * self.boid_max_speed.clone();
             self.boids[boid_to_update.clone()].y_vel =
-                (self.boids[boid_to_update.clone()].clone().y_vel / speed.clone()) * self.boid_max_speed.clone();
+                (self.boids[boid_to_update.clone()].clone().y_vel / speed.clone())
+                    * self.boid_max_speed.clone();
         }
         self.boids[boid_to_update.clone()] = Boid {
             x_vel: self.boids[boid_to_update.clone()].clone().x_vel,
@@ -265,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_flock_validated_correctly(){
+    fn test_flock_validated_correctly() {
         // flock has invalid distances
         let flock = Flock::new(0, 20.0, 2.0, 0.0, 0.2, 1.0);
         assert!(flock.is_err());

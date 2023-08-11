@@ -4,15 +4,18 @@ mod validate;
 // todo: actually read about modules and file structures in rust
 use flock::Flock;
 
-use macroquad::prelude::*;
 use crate::flock::FrameDimensions;
+use macroquad::prelude::*;
 const TIME_PER_FRAME: f32 = 1.0;
 
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
     let flock_size = 10;
     let mut flock = Flock::new(flock_size, 100.0, 200.0, 0.1, 0.9, 0.9)?;
-    let frame_dimensions = FrameDimensions { frame_width: macroquad::window::screen_width(), frame_height: macroquad::window::screen_height() };
+    let frame_dimensions = FrameDimensions {
+        frame_width: macroquad::window::screen_width(),
+        frame_height: macroquad::window::screen_height(),
+    };
 
     flock.randomly_generate_boids(&frame_dimensions);
 
@@ -23,7 +26,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 }
 
-fn draw_updated_boids(flock: &mut Flock, frame_dimensions: &FrameDimensions){
+fn draw_updated_boids(flock: &mut Flock, frame_dimensions: &FrameDimensions) {
     let colours = [RED, BLUE, GREEN, YELLOW];
     for i in 0..flock.flock_size {
         // todo: maybe there's a way to use boids with flock.boids.iter_mut()?
