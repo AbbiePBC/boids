@@ -6,11 +6,18 @@ extern crate rand;
 use crate::boids::maybe_reflect_off_boundaries;
 use crate::boids::Boid;
 use rand::{thread_rng, Rng};
+use crate::TIME_PER_FRAME;
 
 #[derive(Debug)]
-// todo: some of these inputs aren't about the flock so should be extracted
-// e.g. time per frame, frame dimensions
-// and almost all of the methods don't need flock info but boid only.
+/// A struct that represents the dimensions of the frame in which the boids are moving.
+// probably excessive but oh well
+pub(crate) struct FrameDimensions {
+    pub(crate) frame_width: f32,
+    pub(crate) frame_height: f32,
+}
+
+
+#[derive(Debug)]
 pub(crate) struct Flock {
     pub(crate) flock_size: usize,
     pub(crate) boids: Vec<Boid>,
@@ -19,10 +26,7 @@ pub(crate) struct Flock {
     repulsion_factor: f32,       // how much a boid wants to move away from other boids
     adhesion_factor: f32,        // how much a boid wants to stay with the flock
     cohesion_factor: f32, // how much a boid wants to move towards the average position of the flock
-    time_per_frame: f32,
     boid_max_speed: f32,
-    pub(crate) frame_width: f32,
-    pub(crate) frame_height: f32,
 }
 
 #[derive(PartialEq, Debug)]
@@ -117,10 +121,7 @@ impl Flock {
             repulsion_factor,
             adhesion_factor,
             cohesion_factor,
-            time_per_frame: 1.0,
             boid_max_speed: 8.0,
-            frame_width: 800.0,
-            frame_height: 500.0,
         };
         let _ = flock.validate()?;
         flock.init();
@@ -132,14 +133,14 @@ impl Flock {
     // as should the validations above
     fn validate(&self) -> Result<(), InvalidFlockConfig> {
         let mut errors = validate_factors(
-            self.repulsion_factor,
-            self.adhesion_factor,
-            self.cohesion_factor,
+            self.repulsion_factor.clone(),
+            self.adhesion_factor.clone(),
+            self.cohesion_factor.clone(),
         );
 
         if let Some(creation_error) = validate_distances(
-            self.max_dist_before_boid_is_no_longer_crowded,
-            self.max_dist_of_local_boid,
+            self.max_dist_before_boid_is_no_longer_crowded.clone(),
+            self.max_dist_of_local_boid.clone(),
         ) {
             errors.push(creation_error);
         }
@@ -164,14 +165,13 @@ impl Flock {
         }
         return boids;
     }
-    pub(crate) fn randomly_generate_boids(&mut self) {
+    pub(crate) fn randomly_generate_boids(&mut self, dimensions: &FrameDimensions) {
         let mut rng = thread_rng();
         let mut boids = Vec::new();
-        let frame_width = self.frame_width.clone();
-        let mid_frame_x = &frame_width / 2.0;
-        let mid_frame_y = &frame_width / 2.0;
-        let max_starting_dist_from_mid_x = &frame_width / 10.0;
-        let max_starting_dist_from_mid_y = &frame_width / 10.0;
+        let mid_frame_x = &dimensions.frame_width / 2.0;
+        let mid_frame_y = &dimensions.frame_height / 2.0;
+        let max_starting_dist_from_mid_x = &dimensions.frame_width / 10.0;
+        let max_starting_dist_from_mid_y = &dimensions.frame_height / 10.0;
         for _ in 0..self.flock_size {
             boids.push(Boid::new(
                 &mid_frame_x
@@ -196,28 +196,28 @@ impl Flock {
         total_y_dist_of_local_boids: f32,
     ) {
         // move towards the ave position of the local flock, so this is the reverse of uncrowding
-        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids as f32
+        let dist_to_ave_x_pos_of_local_boids: f32 = (total_x_dist_of_local_boids
             / num_local_boids as f32)
-            - self.boids[boid_to_update].x_pos;
-        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids as f32
-            / num_local_boids as f32)
-            - self.boids[boid_to_update].y_pos;
+            - self.boids[boid_to_update].x_pos.clone();
+        let dist_to_ave_y_pos_of_local_boids: f32 = (total_y_dist_of_local_boids
+            / num_local_boids.clone() as f32)
+            - self.boids[boid_to_update.clone()].clone().y_pos;
 
         // update the boid's position to move towards the average position of the local flock, by some cohesion factor
-        self.boids[boid_to_update] = Boid {
-            x_vel: self.boids[boid_to_update].x_vel
-                + (dist_to_ave_x_pos_of_local_boids * self.cohesion_factor)
-                    / self.time_per_frame as f32,
-            y_vel: self.boids[boid_to_update].y_vel
-                + (dist_to_ave_y_pos_of_local_boids * self.cohesion_factor)
-                    / self.time_per_frame as f32,
-            x_pos: self.boids[boid_to_update].x_pos
-                + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
-            y_pos: self.boids[boid_to_update].y_pos
-                + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
+        self.boids[boid_to_update.clone()] = Boid {
+            x_vel: self.boids[boid_to_update.clone()].x_vel.clone()
+                + (dist_to_ave_x_pos_of_local_boids * self.cohesion_factor.clone())
+                    / TIME_PER_FRAME,
+            y_vel: self.boids[boid_to_update.clone()].y_vel.clone()
+                + (dist_to_ave_y_pos_of_local_boids * self.cohesion_factor.clone())
+                    / TIME_PER_FRAME,
+            x_pos: self.boids[boid_to_update.clone()].x_pos.clone()
+                + (self.boids[boid_to_update.clone()].x_vel.clone() * TIME_PER_FRAME),
+            y_pos: self.boids[boid_to_update.clone()].y_pos.clone()
+                + (self.boids[boid_to_update.clone()].y_vel.clone() * TIME_PER_FRAME),
         }
     }
-    pub(crate) fn update_boid(&mut self, boid_to_update: usize) {
+    pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) {
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
         let mut num_crowding_boids: i32 = 0;
@@ -232,45 +232,43 @@ impl Flock {
                 continue;
             }
             boid_idx += 1;
-            if self.boids[boid_to_update]
-                .is_crowded_by_boid(&other_boid, self.max_dist_before_boid_is_no_longer_crowded)
+            if self.boids[boid_to_update.clone()]
+                .is_crowded_by_boid(other_boid, &self.max_dist_before_boid_is_no_longer_crowded)
             {
                 num_crowding_boids += 1;
-                total_x_dist_of_crowding_boids += other_boid.x_pos;
-                total_y_dist_of_crowding_boids += other_boid.y_pos;
-            } else if self.boids[boid_to_update]
-                .is_within_sight_of_local_boid(&other_boid, self.max_dist_of_local_boid)
+                total_x_dist_of_crowding_boids += &other_boid.x_pos;
+                total_y_dist_of_crowding_boids += &other_boid.y_pos;
+            } else if self.boids[boid_to_update.clone()]
+                .is_within_sight_of_local_boid(&other_boid, &self.max_dist_of_local_boid)
             {
                 num_local_boids += 1;
-                total_of_local_boids += *other_boid;
+                total_of_local_boids += other_boid.clone();
             }
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
         if num_crowding_boids > 0 {
             self.boids[boid_to_update] = Boid::uncrowd_boid(
-                self.boids[boid_to_update],
+                &self.boids[boid_to_update.clone()].clone(),
                 num_crowding_boids,
                 total_x_dist_of_crowding_boids,
                 total_y_dist_of_crowding_boids,
-                self.repulsion_factor,
-                self.time_per_frame
+                &self.repulsion_factor,
             );
         }
         if num_local_boids > 0 {
-            self.boids[boid_to_update] = Boid::align_boid(
-                &self.boids[boid_to_update].clone(),
+            self.boids[boid_to_update.clone()] = Boid::align_boid(
+                &self.boids[boid_to_update.clone()],
                 num_local_boids,
                 total_of_local_boids.x_vel,
                 total_of_local_boids.y_vel,
-                self.adhesion_factor,
-                self.time_per_frame,
+                &self.adhesion_factor,
             );
             // todo: move to Boid::.
             Flock::cohere_boid(
                 self,
-                boid_to_update,
-                num_local_boids,
+                boid_to_update.clone(),
+                num_local_boids.clone(),
                 total_of_local_boids.x_pos,
                 total_of_local_boids.y_pos,
             );
@@ -279,22 +277,20 @@ impl Flock {
         if num_local_boids == 0 && num_crowding_boids == 0 {
             // boid is unaffected by other boids, continue moving in same direction
             // maybe a random direction would be more realistic idk
-            self.boids[boid_to_update] = Boid {
-                x_vel: self.boids[boid_to_update].x_vel,
-                y_vel: self.boids[boid_to_update].y_vel,
-                x_pos: self.boids[boid_to_update].x_pos
-                    + (self.boids[boid_to_update].x_vel * self.time_per_frame as f32),
-                y_pos: self.boids[boid_to_update].y_pos
-                    + (self.boids[boid_to_update].y_vel * self.time_per_frame as f32),
+            self.boids[boid_to_update.clone()] = Boid {
+                x_vel: self.boids[boid_to_update.clone()].clone().x_vel,
+                y_vel: self.boids[boid_to_update.clone()].clone().y_vel,
+                x_pos: self.boids[boid_to_update.clone()].clone().x_pos
+                    + (self.boids[boid_to_update.clone()].clone().x_vel * TIME_PER_FRAME),
+                y_pos: self.boids[boid_to_update.clone()].clone().y_pos
+                    + (self.boids[boid_to_update.clone()].clone().y_vel * TIME_PER_FRAME),
             }
         }
 
-        self.limit_speed(boid_to_update);
-        self.boids[boid_to_update] = maybe_reflect_off_boundaries(
-            self.boids[boid_to_update],
-            self.frame_width,
-            self.frame_height,
-            self.time_per_frame,
+        self.limit_speed(boid_to_update.clone());
+        self.boids[boid_to_update.clone()] = maybe_reflect_off_boundaries(
+            &self.boids[boid_to_update.clone()],
+            &dimensions
         );
     }
 
@@ -307,17 +303,17 @@ impl Flock {
         .sqrt();
         if speed > self.boid_max_speed {
             self.boids[boid_to_update.clone()].x_vel =
-                (self.boids[boid_to_update.clone()].x_vel / speed) * self.boid_max_speed;
+                (self.boids[boid_to_update.clone()].clone().x_vel / speed.clone()) * self.boid_max_speed.clone();
             self.boids[boid_to_update.clone()].y_vel =
-                (self.boids[boid_to_update.clone()].y_vel / speed) * self.boid_max_speed;
+                (self.boids[boid_to_update.clone()].clone().y_vel / speed.clone()) * self.boid_max_speed.clone();
         }
         self.boids[boid_to_update.clone()] = Boid {
-            x_vel: self.boids[boid_to_update.clone()].x_vel,
-            y_vel: self.boids[boid_to_update.clone()].y_vel,
-            x_pos: self.boids[boid_to_update.clone()].x_pos
-                + (self.boids[boid_to_update.clone()].x_vel * self.time_per_frame as f32),
-            y_pos: self.boids[boid_to_update.clone()].y_pos
-                + (self.boids[boid_to_update.clone()].y_vel * self.time_per_frame as f32),
+            x_vel: self.boids[boid_to_update.clone()].clone().x_vel,
+            y_vel: self.boids[boid_to_update.clone()].clone().y_vel,
+            x_pos: self.boids[boid_to_update.clone()].clone().x_pos
+                + (self.boids[boid_to_update.clone()].clone().x_vel * TIME_PER_FRAME),
+            y_pos: self.boids[boid_to_update.clone()].clone().y_pos
+                + (self.boids[boid_to_update.clone()].clone().y_vel * TIME_PER_FRAME),
         }
     }
 }
@@ -334,11 +330,11 @@ mod tests {
 
         assert!(!flock.boids[0].is_crowded_by_boid(
             &flock.boids[1],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
         assert!(!flock.boids[1].is_crowded_by_boid(
             &flock.boids[0],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
     }
 
@@ -351,11 +347,11 @@ mod tests {
 
         assert!(flock.boids[0].is_crowded_by_boid(
             &flock.boids[1],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
         assert!(flock.boids[1].is_crowded_by_boid(
             &flock.boids[0],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
     }
 
@@ -369,18 +365,18 @@ mod tests {
         // not crowded
         assert!(!flock.boids[0].is_crowded_by_boid(
             &flock.boids[1],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
         assert!(!flock.boids[1].is_crowded_by_boid(
             &flock.boids[0],
-            flock.max_dist_before_boid_is_no_longer_crowded
+            &flock.max_dist_before_boid_is_no_longer_crowded
         ));
 
         // but still within local zone
         assert!(flock.boids[0]
-            .is_within_sight_of_local_boid(&flock.boids[1], flock.max_dist_of_local_boid));
+            .is_within_sight_of_local_boid(&flock.boids[1], &flock.max_dist_of_local_boid.clone()));
         assert!(flock.boids[1]
-            .is_within_sight_of_local_boid(&flock.boids[0], flock.max_dist_of_local_boid));
+            .is_within_sight_of_local_boid(&flock.boids[0], &flock.max_dist_of_local_boid.clone()));
     }
 
     #[test]
