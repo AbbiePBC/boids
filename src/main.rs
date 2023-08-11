@@ -1,5 +1,7 @@
 mod boids;
 mod flock;
+mod validate;
+// todo: actually read about modules and file structures in rust
 use flock::Flock;
 
 use macroquad::prelude::*;
