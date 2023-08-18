@@ -8,8 +8,8 @@ use rand::{thread_rng, Rng};
 /// A struct that represents the dimensions of the frame in which the boids are moving.
 // probably excessive but oh well
 pub(crate) struct FrameDimensions {
-    pub(crate) frame_width: f32,
-    pub(crate) frame_height: f32,
+    pub(crate) width: f32,
+    pub(crate) height: f32,
 }
 
 #[derive(Debug)]
@@ -89,10 +89,10 @@ impl Flock {
     pub(crate) fn randomly_generate_boids(&mut self, dimensions: &FrameDimensions) {
         let mut rng = thread_rng();
         let mut boids = Vec::new();
-        let mid_frame_x = &dimensions.frame_width / 2.0;
-        let mid_frame_y = &dimensions.frame_height / 2.0;
-        let max_starting_dist_from_mid_x = &dimensions.frame_width / 10.0;
-        let max_starting_dist_from_mid_y = &dimensions.frame_height / 10.0;
+        let mid_frame_x = &dimensions.width / 2.0;
+        let mid_frame_y = &dimensions.height / 2.0;
+        let max_starting_dist_from_mid_x = &dimensions.width / 10.0;
+        let max_starting_dist_from_mid_y = &dimensions.height / 10.0;
         for _ in 0..self.flock_size {
             boids.push(Boid::new(
                 &mid_frame_x
@@ -110,8 +110,7 @@ impl Flock {
     pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) -> Boid {
         let mut current_boid = self.boids[boid_to_update.clone()];
 
-        let mut total_x_dist_of_crowding_boids: f32 = 0.0;
-        let mut total_y_dist_of_crowding_boids: f32 = 0.0;
+        let mut total_x_y_dist_of_crowding_boids: (f32, f32) = (0.0, 0.0);
         let mut num_crowding_boids: i32 = 0;
 
         let mut total_of_local_boids: Boid = Boid::new(0.0, 0.0, 0.0, 0.0);
@@ -127,8 +126,9 @@ impl Flock {
             if current_boid.is_crowded_by_boid(other_boid, &self.max_dist_before_boid_is_no_longer_crowded)
             {
                 num_crowding_boids += 1;
-                total_x_dist_of_crowding_boids += &other_boid.x_pos;
-                total_y_dist_of_crowding_boids += &other_boid.y_pos;
+                total_x_y_dist_of_crowding_boids.0 += &other_boid.x_y_positions.0;
+                total_x_y_dist_of_crowding_boids.1 += &other_boid.x_y_positions.1;
+
             } else if current_boid.is_within_sight_of_local_boid(&other_boid, &self.max_dist_of_local_boid)
             {
                 num_local_boids += 1;
@@ -138,48 +138,36 @@ impl Flock {
         }
 
         if num_crowding_boids > 0 {
-             let (new_vel_x, new_vel_y) = Boid::uncrowd_boid(
+            current_boid.x_y_velocities = Boid::uncrowd_boid(
                 &current_boid,
                 num_crowding_boids,
-                total_x_dist_of_crowding_boids,
-                total_y_dist_of_crowding_boids,
+                total_x_y_dist_of_crowding_boids,
                 &self.repulsion_factor,
             );
-            current_boid.x_y_velocities.0 = new_vel_x.clone();
-            current_boid.x_y_velocities.1 = new_vel_y.clone();
         }
 
         if num_local_boids > 0 {
-            let (new_vel_x, new_vel_y) = Boid::align_boid(
+            current_boid.x_y_velocities = Boid::align_boid(
                 &current_boid,
                 num_local_boids,
                 total_of_local_boids.x_y_velocities,
                 &self.adhesion_factor,
             );
-
-            current_boid.x_y_velocities.0 = new_vel_x.clone();
-            current_boid.x_y_velocities.1 = new_vel_y.clone();
-
-            let (new_vel_x, new_vel_y) = Boid::cohere_boid(
+            current_boid.x_y_velocities = Boid::cohere_boid(
                 &current_boid,
                 num_local_boids.clone(),
-                total_of_local_boids.x_pos,
-                total_of_local_boids.y_pos,
+                total_of_local_boids.x_y_positions,
                 &self.cohesion_factor,
             );
-            current_boid.x_y_velocities.0 = new_vel_x.clone();
-            current_boid.x_y_velocities.1 = new_vel_y.clone();
         }
 
-        let (new_x_vel, new_y_vel) = limit_speed(
+        current_boid.x_y_velocities = limit_speed(
             current_boid.x_y_velocities.clone(),
             self.boid_max_speed.clone(),
         );
-        current_boid.x_y_velocities.0 = new_x_vel.clone();
-        current_boid.x_y_velocities.1 = new_y_vel.clone();
 
-        current_boid = Boid::move_boid(&current_boid);
-        current_boid = maybe_reflect_off_boundaries(&current_boid, &dimensions);
+        current_boid.x_y_velocities = maybe_reflect_off_boundaries(&current_boid, dimensions);
+        current_boid = Boid::move_boid(&current_boid, dimensions);
 
         return current_boid.to_owned();
     }

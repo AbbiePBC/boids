@@ -13,8 +13,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let flock_size = 100;
     let mut flock = Flock::new(flock_size, 300.0, 400.0, 0.3, 0.3, 0.3)?;
     let frame_dimensions = FrameDimensions {
-        frame_width: macroquad::window::screen_width(),
-        frame_height: macroquad::window::screen_height(),
+        width: macroquad::window::screen_width(),
+        height: macroquad::window::screen_height(),
     };
 
     flock.randomly_generate_boids(&frame_dimensions);
@@ -35,8 +35,8 @@ fn draw_updated_boids(flock: &mut Flock, frame_dimensions: &FrameDimensions) {
         let boid = flock.update_boid(i, &frame_dimensions);
         flock.boids[i.clone()] = boid.clone();
         draw_circle(
-            boid.x_pos,
-            boid.y_pos,
+            boid.x_y_positions.0,
+            boid.x_y_positions.1,
             2.5,
             colours[i.clone() % colours.len()],
         );
