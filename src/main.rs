@@ -10,7 +10,7 @@ const TIME_PER_FRAME: f32 = 1.0;
 
 #[macroquad::main("Boids")]
 async fn main() -> Result<(), anyhow::Error> {
-    let flock_size = 1;
+    let flock_size = 100;
     let mut flock = Flock::new(flock_size, 300.0, 400.0, 0.3, 0.3, 0.3)?;
     let frame_dimensions = FrameDimensions {
         frame_width: macroquad::window::screen_width(),
@@ -32,12 +32,14 @@ fn draw_updated_boids(flock: &mut Flock, frame_dimensions: &FrameDimensions) {
         // todo: maybe there's a way to use boids with flock.boids.iter_mut()?
         // unsure if this would work to allow exclusion of current boid from totals
         // could work around that by summing then subtracting current boid's values
-        flock.update_boid(i, &frame_dimensions);
+        let boid = flock.update_boid(i, &frame_dimensions);
+        flock.boids[i.clone()] = boid.clone();
         draw_circle(
-            flock.boids[i.clone()].x_pos.clone(),
-            flock.boids[i.clone()].y_pos.clone(),
+            boid.x_pos,
+            boid.y_pos,
             2.5,
-            colours[(i.clone() % colours.len())],
+            colours[i.clone() % colours.len()],
         );
+
     }
 }

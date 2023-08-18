@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Error};
 use std::error;
 use std::fmt;
 
@@ -46,7 +46,7 @@ pub(crate) fn validate_factors(
     let adhesion = check_float_between_zero_and_one(adhesion_factor, "adhesion".to_string());
     let cohesion = check_float_between_zero_and_one(cohesion_factor, "cohesion".to_string());
 
-    let mut errors: Vec<_> = [repulsion, adhesion, cohesion]
+    let errors: Vec<_> = [repulsion, adhesion, cohesion]
         .into_iter()
         .filter_map(|option| option)
         .collect();

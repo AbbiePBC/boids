@@ -1,8 +1,7 @@
 use macroquad::prelude::*;
 extern crate rand;
-use crate::boids::{Boid, limit_speed, maybe_reflect_off_boundaries};
+use crate::boids::{maybe_reflect_off_boundaries, Boid, limit_speed};
 use crate::validate::{validate_distances, validate_factors, InvalidFlockConfig};
-use crate::TIME_PER_FRAME;
 use rand::{thread_rng, Rng};
 
 #[derive(Debug)]
@@ -111,7 +110,9 @@ impl Flock {
     // todo: on reflection, this should probably be
     // Boids::update_boids(&self, boid_idx, flock, dimensions: &FrameDimensions)
     // -> Boid()
-    pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) {
+    pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) -> Boid{
+        let mut current_boid = self.boids[boid_to_update.clone()];
+
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
         let mut total_y_dist_of_crowding_boids: f32 = 0.0;
         let mut num_crowding_boids: i32 = 0;
@@ -126,14 +127,12 @@ impl Flock {
                 continue;
             }
             boid_idx += 1;
-            if self.boids[boid_to_update.clone()]
-                .is_crowded_by_boid(other_boid, &self.max_dist_before_boid_is_no_longer_crowded)
+            if current_boid.is_crowded_by_boid(other_boid, &self.max_dist_before_boid_is_no_longer_crowded)
             {
                 num_crowding_boids += 1;
                 total_x_dist_of_crowding_boids += &other_boid.x_pos;
                 total_y_dist_of_crowding_boids += &other_boid.y_pos;
-            } else if self.boids[boid_to_update.clone()]
-                .is_within_sight_of_local_boid(&other_boid, &self.max_dist_of_local_boid)
+            } else if current_boid.is_within_sight_of_local_boid(&other_boid, &self.max_dist_of_local_boid)
             {
                 num_local_boids += 1;
                 total_of_local_boids += other_boid.clone();
@@ -141,52 +140,55 @@ impl Flock {
             // else, the other_boid is too far away to affect the boid we're updating
         }
 
-        // todo: these functions should affect the boid velocity and not position,
-        // and then the boid position should be updated later
-        // once the boid velocity is capped at the maximum
-
         if num_crowding_boids > 0 {
-            let (new_vel_x, new_vel_y) = Boid::uncrowd_boid(
-                &self.boids[boid_to_update.clone()].clone(),
+             let (new_vel_x, new_vel_y) = Boid::uncrowd_boid(
+                &current_boid,
                 num_crowding_boids,
                 total_x_dist_of_crowding_boids,
                 total_y_dist_of_crowding_boids,
                 &self.repulsion_factor,
             );
-            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
-            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
+            current_boid.x_vel = new_vel_x.clone();
+            current_boid.y_vel = new_vel_y.clone();
         }
+
         if num_local_boids > 0 {
             let (new_vel_x, new_vel_y) = Boid::align_boid(
-                &self.boids[boid_to_update.clone()],
+                &current_boid,
                 num_local_boids,
                 total_of_local_boids.x_vel,
                 total_of_local_boids.y_vel,
                 &self.adhesion_factor,
             );
 
-            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
-            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
+            current_boid.x_vel = new_vel_x.clone();
+            current_boid.y_vel = new_vel_y.clone();
 
             let (new_vel_x, new_vel_y) = Boid::cohere_boid(
-                &self.boids[boid_to_update.clone()],
+                &current_boid,
                 num_local_boids.clone(),
                 total_of_local_boids.x_pos,
                 total_of_local_boids.y_pos,
                 &self.cohesion_factor,
             );
 
-            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
-            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
+            current_boid.x_vel = new_vel_x.clone();
+            current_boid.y_vel = new_vel_y.clone();
         }
 
-        self.boids[boid_to_update.clone()] = Boid::move_boid(&self.boids[boid_to_update.clone()]);
+        let (new_x_vel, new_y_vel) = limit_speed(
+            current_boid.x_vel.clone(),
+            current_boid.y_vel.clone(),
+            self.boid_max_speed.clone(),
+        );
+        current_boid.x_vel = new_x_vel.clone();
+        current_boid.y_vel = new_y_vel.clone();
 
-        self.boids[boid_to_update.clone()] =
-            maybe_reflect_off_boundaries(&self.boids[boid_to_update.clone()], &dimensions);
+        current_boid = Boid::move_boid(&current_boid);
+        current_boid = maybe_reflect_off_boundaries(&current_boid, &dimensions);
 
+        return current_boid.to_owned();
     }
-
 }
 
 #[cfg(test)]

@@ -1,7 +1,5 @@
 use crate::{FrameDimensions, TIME_PER_FRAME};
 use macroquad::prelude::*;
-use std::error;
-use std::fmt;
 use std::ops::AddAssign;
 
 fn clamp_position_to_stay_in_frame(co_ord: f32, max_in_direction: &f32) -> f32 {
@@ -19,12 +17,9 @@ pub(crate) fn limit_speed(x_vel: f32, y_vel: f32, max_boid_speed: f32) -> (f32, 
     if speed < max_boid_speed {
         return (x_vel, y_vel);
     }
-    let new_x_speed = x_vel / speed.clone() * speed.clone();
-    let new_y_speed = y_vel / speed.clone() * speed.clone();
-    return (new_x_speed, new_y_speed);
-
+    let scaling_factor = max_boid_speed / speed;
+    return (x_vel * &scaling_factor, y_vel * &scaling_factor);
 }
-
 
 pub(crate) fn maybe_reflect_off_boundaries(
     boid_to_update: &Boid,
@@ -97,8 +92,10 @@ impl Boid {
         let average_x_vel: f32 = total_x_vel_of_local_boids / num_local_boids.clone() as f32;
         let average_y_vel: f32 = total_y_vel_of_local_boids / num_local_boids.clone() as f32;
         // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
-        return ( &self.x_vel + ((average_x_vel - &self.x_vel) * adhesion_factor) / TIME_PER_FRAME,
-                &self.y_vel + ((average_y_vel - &self.y_vel) * adhesion_factor) / TIME_PER_FRAME );
+        return (
+            &self.x_vel + ((average_x_vel - &self.x_vel) * adhesion_factor) / TIME_PER_FRAME,
+            &self.y_vel + ((average_y_vel - &self.y_vel) * adhesion_factor) / TIME_PER_FRAME,
+        );
     }
 
     pub(crate) fn uncrowd_boid(
@@ -115,8 +112,10 @@ impl Boid {
             - (total_y_dist_of_crowding_boids as f32 / num_crowding_boids.clone() as f32);
 
         // update velocity to move away from the average boid position within the crowding flock
-        return ( &self.x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
-            &self.y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME )
+        return (
+            &self.x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
+            &self.y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
+        );
     }
 
     pub(crate) fn cohere_boid(
@@ -134,19 +133,21 @@ impl Boid {
 
         // update the boid's position to move towards the average position of the local flock, by some cohesion factor
 
-        return ( &self.x_vel + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
-            &self.y_vel + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME )
+        return (
+            &self.x_vel + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
+            &self.y_vel + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
+        );
     }
 
     pub(crate) fn move_boid(&self) -> Boid {
         // d=tv
         let new_x_pos = self.x_pos.clone() + (self.x_vel.clone() * TIME_PER_FRAME);
         let new_y_pos = self.y_pos.clone() + (self.y_vel.clone() * TIME_PER_FRAME);
-        return Boid{
+        return Boid {
             x_pos: new_x_pos,
             y_pos: new_y_pos,
             ..self.clone()
-        }
+        };
     }
 }
 
@@ -230,9 +231,9 @@ mod tests {
     #[test]
     fn test_crowded_boid_has_updated_velocity() {
         let mut boid = Boid::new(1.0, 1.0, 1.0, 1.0);
-        let mut other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
+        let other_boid = Boid::new(10.0, 10.0, 1.0, 5.0);
 
-        let mut repulsion_factor = 0.0;
+        let repulsion_factor = 0.0;
         let (new_x_vel, new_y_vel) = Boid::uncrowd_boid(
             &mut boid,
             1,
@@ -243,6 +244,5 @@ mod tests {
 
         assert_eq!(new_x_vel, boid.x_vel);
         assert_eq!(new_y_vel, boid.y_vel);
-
     }
 }
