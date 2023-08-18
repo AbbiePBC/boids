@@ -144,39 +144,44 @@ impl Flock {
         // todo: these functions should affect the boid velocity and not position,
         // and then the boid position should be updated later
         // once the boid velocity is capped at the maximum
+
         if num_crowding_boids > 0 {
-            self.boids[boid_to_update] = Boid::uncrowd_boid(
+            let (new_vel_x, new_vel_y) = Boid::uncrowd_boid(
                 &self.boids[boid_to_update.clone()].clone(),
                 num_crowding_boids,
                 total_x_dist_of_crowding_boids,
                 total_y_dist_of_crowding_boids,
                 &self.repulsion_factor,
             );
+            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
+            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
         }
         if num_local_boids > 0 {
-            self.boids[boid_to_update.clone()] = Boid::align_boid(
+            let (new_vel_x, new_vel_y) = Boid::align_boid(
                 &self.boids[boid_to_update.clone()],
                 num_local_boids,
                 total_of_local_boids.x_vel,
                 total_of_local_boids.y_vel,
                 &self.adhesion_factor,
             );
-            self.boids[boid_to_update.clone()] = Boid::cohere_boid(
+
+            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
+            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
+
+            let (new_vel_x, new_vel_y) = Boid::cohere_boid(
                 &self.boids[boid_to_update.clone()],
                 num_local_boids.clone(),
                 total_of_local_boids.x_pos,
                 total_of_local_boids.y_pos,
                 &self.cohesion_factor,
             );
-        }
-        if num_local_boids == 0 && num_crowding_boids == 0 {
-            self.boids[boid_to_update.clone()].continue_moving_as_unaffected_by_other_boids();
+
+            self.boids[boid_to_update.clone()].x_vel = new_vel_x.clone();
+            self.boids[boid_to_update.clone()].y_vel = new_vel_y.clone();
         }
 
         self.boids[boid_to_update.clone()] = Boid::move_boid(&self.boids[boid_to_update.clone()]);
-        // todo: without the above function, the boids do not move
-        // in theory this is fine, bc we're updating vel not position as we go
-        // but check this is the case rather than a bug somewhere
+
         self.boids[boid_to_update.clone()] =
             maybe_reflect_off_boundaries(&self.boids[boid_to_update.clone()], &dimensions);
 
