@@ -12,7 +12,9 @@ fn clamp_position_to_stay_in_frame(co_ord: f32, max_in_direction: &f32) -> f32 {
     current_distance_in_direction
 }
 
-pub(crate) fn limit_speed(x_vel: f32, y_vel: f32, max_boid_speed: f32) -> (f32, f32) {
+pub(crate) fn limit_speed(x_y_velocities: (f32, f32), max_boid_speed: f32) -> (f32, f32) {
+    let x_vel = x_y_velocities.0;
+    let y_vel = x_y_velocities.1;
     let speed = (x_vel.powi(2) + y_vel.powi(2)).sqrt();
     if speed < max_boid_speed {
         return (x_vel, y_vel);
@@ -26,32 +28,30 @@ pub(crate) fn maybe_reflect_off_boundaries(
     dimensions: &FrameDimensions,
 ) -> Boid {
     // previous code assumed (0,0) was centre, but that's not the case.
-    let mut new_x_vel = boid_to_update.x_vel.clone();
-    let mut new_y_vel = boid_to_update.y_vel.clone();
+    let mut new_x_vel = boid_to_update.x_y_velocities.0.clone();
+    let mut new_y_vel = boid_to_update.x_y_velocities.1.clone();
 
     if boid_to_update.x_pos >= dimensions.frame_width || boid_to_update.x_pos <= 0.0 {
-        new_x_vel = &boid_to_update.x_vel * -1.0;
+        new_x_vel = &boid_to_update.x_y_velocities.0 * -1.0;
     }
     if boid_to_update.y_pos >= dimensions.frame_height || boid_to_update.y_pos <= 0.0 {
-        new_y_vel = &boid_to_update.y_vel * -1.0;
+        new_y_vel = &boid_to_update.x_y_velocities.1 * -1.0;
     }
     let new_x_pos: f32 = &boid_to_update.x_pos + (new_x_vel * TIME_PER_FRAME);
     let new_y_pos: f32 = &boid_to_update.y_pos + (new_y_vel * TIME_PER_FRAME);
 
-    return Boid {
-        x_vel: new_x_vel.to_owned(),
-        y_vel: new_y_vel.to_owned(),
-        x_pos: clamp_position_to_stay_in_frame(new_x_pos, &dimensions.frame_width),
-        y_pos: clamp_position_to_stay_in_frame(new_y_pos, &dimensions.frame_height),
-    };
+    return Boid::new(
+                     clamp_position_to_stay_in_frame(new_x_pos, &dimensions.frame_width),
+                     clamp_position_to_stay_in_frame(new_y_pos, &dimensions.frame_width),
+                     new_x_vel.to_owned(), new_y_vel.to_owned(),
+    );
 }
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Boid {
     pub(crate) x_pos: f32,
     pub(crate) y_pos: f32,
-    pub(crate) x_vel: f32,
-    pub(crate) y_vel: f32,
+    pub(crate) x_y_velocities: (f32, f32),
 }
 
 impl Boid {
@@ -59,8 +59,7 @@ impl Boid {
         return Boid {
             x_pos,
             y_pos,
-            x_vel,
-            y_vel,
+            x_y_velocities: (x_vel, y_vel),
         };
     }
 
@@ -85,16 +84,15 @@ impl Boid {
     pub(crate) fn align_boid(
         &self,
         num_local_boids: i32,
-        total_x_vel_of_local_boids: f32,
-        total_y_vel_of_local_boids: f32,
+        total_x_y_local_velocities: (f32, f32),
         adhesion_factor: &f32,
     ) -> (f32, f32) {
-        let average_x_vel: f32 = total_x_vel_of_local_boids / num_local_boids.clone() as f32;
-        let average_y_vel: f32 = total_y_vel_of_local_boids / num_local_boids.clone() as f32;
+        let average_x_vel: f32 = total_x_y_local_velocities.0 / num_local_boids.clone() as f32;
+        let average_y_vel: f32 = total_x_y_local_velocities.1 / num_local_boids.clone() as f32;
         // update the boid's velocity to move towards the average velocity of the local flock, by some adhesion factor
         return (
-            &self.x_vel + ((average_x_vel - &self.x_vel) * adhesion_factor) / TIME_PER_FRAME,
-            &self.y_vel + ((average_y_vel - &self.y_vel) * adhesion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.0 + ((average_x_vel - &self.x_y_velocities.0 ) * adhesion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.1 + ((average_y_vel - &self.x_y_velocities.1) * adhesion_factor) / TIME_PER_FRAME,
         );
     }
 
@@ -113,8 +111,8 @@ impl Boid {
 
         // update velocity to move away from the average boid position within the crowding flock
         return (
-            &self.x_vel + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
-            &self.y_vel + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.0 + (dist_to_ave_x_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.1 + (dist_to_ave_y_pos_of_crowding_boids * repulsion_factor) / TIME_PER_FRAME,
         );
     }
 
@@ -134,15 +132,15 @@ impl Boid {
         // update the boid's position to move towards the average position of the local flock, by some cohesion factor
 
         return (
-            &self.x_vel + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
-            &self.y_vel + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.0 + (dist_to_ave_x_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
+            &self.x_y_velocities.1 + (dist_to_ave_y_pos_of_local_boids * cohesion_factor) / TIME_PER_FRAME,
         );
     }
 
     pub(crate) fn move_boid(&self) -> Boid {
         // d=tv
-        let new_x_pos = self.x_pos.clone() + (self.x_vel.clone() * TIME_PER_FRAME);
-        let new_y_pos = self.y_pos.clone() + (self.y_vel.clone() * TIME_PER_FRAME);
+        let new_x_pos = self.x_pos.clone() + (self.x_y_velocities.0.clone() * TIME_PER_FRAME);
+        let new_y_pos = self.y_pos.clone() + (self.x_y_velocities.1.clone() * TIME_PER_FRAME);
         return Boid {
             x_pos: new_x_pos,
             y_pos: new_y_pos,
@@ -155,8 +153,8 @@ impl AddAssign for Boid {
     fn add_assign(&mut self, other: Self) {
         self.x_pos += other.x_pos;
         self.y_pos += other.y_pos;
-        self.x_vel += other.x_vel;
-        self.y_vel += other.y_vel;
+        self.x_y_velocities.0 += other.x_y_velocities.0;
+        self.x_y_velocities.1 += other.x_y_velocities.1;
     }
 }
 
@@ -169,7 +167,7 @@ mod tests {
         let adhesion_factor = 1.0;
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
 
-        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, 20.0, 0.0, &adhesion_factor);
+        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, (20.0, 0.0), &adhesion_factor);
         assert_eq!(new_x_vel, 10.0);
         assert_eq!(new_y_vel, 0.0);
     }
@@ -179,7 +177,7 @@ mod tests {
         let adhesion_factor = 0.0;
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
 
-        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, 20.0, 0.0, &adhesion_factor);
+        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, (20.0, 0.0), &adhesion_factor);
         assert_eq!(new_x_vel, 1.0);
         assert_eq!(new_y_vel, 5.0);
     }
@@ -189,7 +187,7 @@ mod tests {
         let adhesion_factor = 0.5;
         let boid = Boid::new(1.0, 1.0, 1.0, 5.0);
 
-        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, 20.0, 0.0, &adhesion_factor);
+        let (new_x_vel, new_y_vel) = Boid::align_boid(&boid, 2, (20.0, 0.0), &adhesion_factor);
         assert_eq!(new_x_vel, 5.5);
         assert_eq!(new_y_vel, 2.5);
     }
@@ -198,12 +196,7 @@ mod tests {
     fn test_boundary_reflected_when_velocity_is_zero() {
         // boid is past the boundary
         // but the velocity is such that reflecting the boid will not help
-        let boid_to_update = Boid {
-            x_pos: -1.0,
-            y_pos: 0.0,
-            x_vel: 0.0,
-            y_vel: 0.0,
-        };
+        let boid_to_update = Boid::new(-1.0, 0.0, 0.0, 0.0);
         let dimensions = FrameDimensions {
             frame_width: 1000.0,
             frame_height: 1000.0,
@@ -218,12 +211,7 @@ mod tests {
             frame_height: 1000.0,
         };
 
-        let boid_to_update = Boid {
-            x_pos: dimensions.frame_width,
-            y_pos: 0.0,
-            x_vel: 100000.0,
-            y_vel: 0.0,
-        };
+        let boid_to_update = Boid::new(dimensions.frame_width, 0.0, 100000.0, 0.0);
         let updated_boid = maybe_reflect_off_boundaries(&boid_to_update, &dimensions);
         assert!(updated_boid.x_pos > 0.0);
     }
@@ -242,7 +230,7 @@ mod tests {
             &repulsion_factor,
         );
 
-        assert_eq!(new_x_vel, boid.x_vel);
-        assert_eq!(new_y_vel, boid.y_vel);
+        assert_eq!(new_x_vel, boid.x_y_velocities.0);
+        assert_eq!(new_y_vel, boid.x_y_velocities.1);
     }
 }

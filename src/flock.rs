@@ -107,10 +107,7 @@ impl Flock {
         self.boids = boids;
     }
 
-    // todo: on reflection, this should probably be
-    // Boids::update_boids(&self, boid_idx, flock, dimensions: &FrameDimensions)
-    // -> Boid()
-    pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) -> Boid{
+    pub(crate) fn update_boid(&mut self, boid_to_update: usize, dimensions: &FrameDimensions) -> Boid {
         let mut current_boid = self.boids[boid_to_update.clone()];
 
         let mut total_x_dist_of_crowding_boids: f32 = 0.0;
@@ -148,21 +145,20 @@ impl Flock {
                 total_y_dist_of_crowding_boids,
                 &self.repulsion_factor,
             );
-            current_boid.x_vel = new_vel_x.clone();
-            current_boid.y_vel = new_vel_y.clone();
+            current_boid.x_y_velocities.0 = new_vel_x.clone();
+            current_boid.x_y_velocities.1 = new_vel_y.clone();
         }
 
         if num_local_boids > 0 {
             let (new_vel_x, new_vel_y) = Boid::align_boid(
                 &current_boid,
                 num_local_boids,
-                total_of_local_boids.x_vel,
-                total_of_local_boids.y_vel,
+                total_of_local_boids.x_y_velocities,
                 &self.adhesion_factor,
             );
 
-            current_boid.x_vel = new_vel_x.clone();
-            current_boid.y_vel = new_vel_y.clone();
+            current_boid.x_y_velocities.0 = new_vel_x.clone();
+            current_boid.x_y_velocities.1 = new_vel_y.clone();
 
             let (new_vel_x, new_vel_y) = Boid::cohere_boid(
                 &current_boid,
@@ -171,18 +167,16 @@ impl Flock {
                 total_of_local_boids.y_pos,
                 &self.cohesion_factor,
             );
-
-            current_boid.x_vel = new_vel_x.clone();
-            current_boid.y_vel = new_vel_y.clone();
+            current_boid.x_y_velocities.0 = new_vel_x.clone();
+            current_boid.x_y_velocities.1 = new_vel_y.clone();
         }
 
         let (new_x_vel, new_y_vel) = limit_speed(
-            current_boid.x_vel.clone(),
-            current_boid.y_vel.clone(),
+            current_boid.x_y_velocities.clone(),
             self.boid_max_speed.clone(),
         );
-        current_boid.x_vel = new_x_vel.clone();
-        current_boid.y_vel = new_y_vel.clone();
+        current_boid.x_y_velocities.0 = new_x_vel.clone();
+        current_boid.x_y_velocities.1 = new_y_vel.clone();
 
         current_boid = Boid::move_boid(&current_boid);
         current_boid = maybe_reflect_off_boundaries(&current_boid, &dimensions);
